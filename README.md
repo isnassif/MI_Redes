@@ -26,7 +26,6 @@
     <li><a href="#concorrencia">Concorrência e Sincronização</a></li>
     <li><a href="#interacao">Interação via Cliente Terminal</a></li>
     <li><a href="#confiabilidade">Confiabilidade e Tratamento de Falhas</a></li>
-    <li><a href="#testes">Testes</a></li>
     <li><a href="#docker">Emulação com Docker</a></li>
     <li><a href="#execucao">Como Executar</a></li>
     <li><a href="#equipe">Equipe</a></li>
@@ -285,81 +284,6 @@ Sensores desconectados durante o monitoramento são marcados com `⚠ ERRO NO SE
 **Reconexão automática:** todos os componentes detectam desconexão quando `recv()` retorna vazio ou `send()` lança `OSError` e reconectam a cada 3 segundos automaticamente, preservando o estado local.
 
 **Timeout e keepalive:** timeout de 35s no `recv()` TCP dos dispositivos. Ao disparar, enviam `ping\n` — sem resposta, encerram e reconectam. O broker usa timeout de 30s e envia `ping\n` ativamente.
-
-</section>
-
----
-
-<section id="testes">
-<h2>Testes</h2>
-
-Os testes foram realizados manualmente em ambiente local e com Docker, cobrindo os principais cenários de operação e falha. Todos são reproduzíveis abrindo múltiplos terminais com os arquivos do projeto.
-
-<div align="center">
-  <br>
-  <strong>Ambiente de testes com múltiplos componentes simultâneos</strong>
-  <br><br>
-</div>
-
-### Teste 1 — Múltiplos sensores do mesmo tipo
-
-```bash
-python broker.py
-SENSOR_ID=velocidade-001 python sensor_velocidade.py
-SENSOR_ID=velocidade-002 python sensor_velocidade.py
-python cliente.py  # selecionar ambos para monitoramento
-```
-
-**Esperado:** cliente lista "Velocidade 1" e "Velocidade 2" com gráficos independentes. Valores convergem gradualmente ao longo do tempo — evidência do push da mediana canônica.
-
----
-
-### Teste 2 — Ativação e desativação do limitador
-
-```bash
-python broker.py
-python sensor_velocidade.py
-python atuador_limitador.py
-python cliente.py  # monitorar velocidade ao vivo; ativar limitador em 120 km/h
-```
-
-**Esperado:** mensagem `LIMITADOR ATIVADO ≤120 km/h` no terminal do sensor em até 1s. Gráfico de velocidade passa a flutuar abaixo de 120 km/h. Ao desativar, valores voltam a subir livremente.
-
-<div align="center">
-  <br>
-  <strong>Sensor recebendo push do limitador em tempo real</strong>
-  <br><br>
-</div>
-
----
-
-### Teste 3 — Queda e reconexão do broker
-
-```bash
-# Com tudo rodando: Ctrl+C no broker → aguarde 5s → python broker.py
-```
-
-**Esperado:** sensores e atuadores imprimem `Broker indisponível. Tentando em 3s...`. Cliente exibe `⚠ Broker desconectado.`. Ao reiniciar, todos reconectam automaticamente.
-
----
-
-### Teste 4 — Desconexão de atuador ativo
-
-```bash
-# Com limitador ativado em 80 km/h: Ctrl+C no atuador
-```
-
-**Esperado:** sensor recebe push com `limitador_ativo: false` e imprime `Limitador DESATIVADO — livre`. Cliente remove o atuador da lista. Velocidade volta a ultrapassar 80 km/h.
-
----
-
-### Teste 5 — Duas máquinas distintas via Docker
-
-**Máquina A:** `docker run -p 5000:5000/udp -p 5001:5001 -p 5002:5002 broker`
-
-**Máquina B:** `docker run -e BROKER_HOST=<IP_A> sensor_velocidade`
-
-**Esperado:** sensor da Máquina B conecta no broker da Máquina A. Cliente vê o sensor e recebe telemetria normalmente — comportamento idêntico ao local.
 
 </section>
 
