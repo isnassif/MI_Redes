@@ -38,12 +38,6 @@ A implementação é feita em Python puro utilizando sockets TCP e UDP, sem bibl
 <section id="arquitetura">
 <h2>Arquitetura</h2>
 
-<div align="center">
-  <img src="docs/arquitetura_geral.png">
-  <br>
-  <strong>Arquitetura geral do sistema</strong>
-  <br><br>
-</div>
 
 O sistema é composto por quatro processos independentes executados separadamente:
 
@@ -92,13 +86,6 @@ O broker também envia mensagens de push para sensores sempre que o estado de um
 <section id="concorrencia">
 <h2>Concorrência</h2>
 
-<div align="center">
-  <img src="docs/threading.png">
-  <br>
-  <strong>Modelo de concorrência do broker</strong>
-  <br><br>
-</div>
-
 O broker é multi-threaded e opera com três loops principais: recepção UDP, aceitação de conexões TCP de dispositivos e aceitação de clientes. Cada conexão aceita gera uma thread dedicada responsável por todo o ciclo de vida do socket.
 
 Estruturas compartilhadas como listas de sensores, atuadores e valores agregados são protegidas com `threading.Lock`, garantindo acesso consistente entre threads.
@@ -112,12 +99,6 @@ Para agregação de dados, o broker calcula a mediana dos sensores de mesmo tipo
 <section id="cliente">
 <h2>Cliente Terminal</h2>
 
-<div align="center">
-  <img src="docs/cliente_monitoramento.gif">
-  <br>
-  <strong>Monitoramento em tempo real</strong>
-  <br><br>
-</div>
 
 O cliente é uma aplicação de terminal que mantém conexão TCP com o broker e recebe telemetria em tempo real apenas dos sensores assinados.
 
