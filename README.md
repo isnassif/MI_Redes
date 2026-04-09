@@ -28,7 +28,6 @@
     <li><a href="#confiabilidade">Confiabilidade e Tratamento de Falhas</a></li>
     <li><a href="#docker">Emulação com Docker</a></li>
     <li><a href="#execucao">Como Executar</a></li>
-    <li><a href="#equipe">Equipe</a></li>
   </ul>
 </nav>
 
@@ -347,24 +346,3 @@ python cliente.py  # BROKER_HOST=localhost por padrão
 | `ACTUATOR_ID` | `<tipo>-<uuid>` | ID único — gerado automaticamente se ausente |
 
 </section>
-
----
-
-<section id="equipe">
-<h2>Equipe</h2>
-
-Desenvolvido como projeto da disciplina de **Redes de Computadores / Sistemas Distribuídos — UEFS, 2025**.
-
-| Nome | GitHub |
-|---|---|
-| — | — |
-| — | — |
-| — | — |
-
-</section>
-
----
-
-<div align="center">
-<sub>Feito com 🏎 e muitos <code>threading.Lock</code> — UEFS 2025</sub>
-</div>
