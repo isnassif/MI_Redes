@@ -19,7 +19,7 @@
 <h2>Descrição Geral</h2>
 
 <div align="center">
-  <img src="docs/banner.png">
+  <img width="726" height="368" alt="image" src="https://github.com/user-attachments/assets/e9daa5e8-f360-4eb4-a8db-eb6ce268ab69" />
   <br>
   <strong>Sistema distribuído de telemetria veicular em execução</strong>
   <br><br>
