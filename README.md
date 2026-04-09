@@ -1,32 +1,35 @@
-<nav>
+<nav id="sumario-completo">
   <h2>Sumário</h2>
   <ul>
-    <li><a href="#overview">Visão Geral</a></li>
+    <li><a href="#descricao-geral">Descrição Geral</a></li>
     <li><a href="#arquitetura">Arquitetura</a></li>
     <li><a href="#comunicacao">Comunicação</a></li>
     <li><a href="#protocolo">Protocolo</a></li>
     <li><a href="#concorrencia">Concorrência</a></li>
-    <li><a href="#estrutura">Estrutura do Projeto</a></li>
-    <li><a href="#execucao">Execução</a></li>
+    <li><a href="#cliente">Cliente</a></li>
+    <li><a href="#confiabilidade">Confiabilidade</a></li>
     <li><a href="#docker">Docker</a></li>
+    <li><a href="#execucao">Execução</a></li>
   </ul>
 </nav>
 
 ---
 
-<section id="overview">
-<h2>Visão Geral</h2>
+<section id="descricao-geral">
+<h2>Descrição Geral</h2>
 
 <div align="center">
   <img src="docs/banner.png">
   <br>
-  <strong>Sistema distribuído de telemetria veicular</strong>
+  <strong>Sistema distribuído de telemetria veicular em execução</strong>
   <br><br>
 </div>
 
-Sistema distribuído baseado em um broker central que integra sensores, atuadores e clientes através do modelo publish-subscribe. Sensores enviam telemetria contínua, atuadores recebem comandos e o cliente permite monitoramento e controle em tempo real.
+Este projeto implementa um sistema distribuído de telemetria veicular baseado em um broker central responsável por orquestrar sensores, atuadores e clientes. Sensores publicam dados continuamente, atuadores recebem comandos e o cliente consome e controla o sistema em tempo real.
 
-A implementação é feita em Python puro (sem dependências externas), com comunicação híbrida (UDP + TCP) e suporte a execução distribuída via Docker.
+A arquitetura segue o modelo publish-subscribe, onde todos os componentes se comunicam exclusivamente com o broker. Isso elimina dependências diretas entre processos e permite que sensores, atuadores e clientes sejam adicionados ou removidos dinamicamente sem necessidade de reconfiguração.
+
+A implementação é feita em Python puro utilizando sockets TCP e UDP, sem bibliotecas externas, com foco em controle explícito de rede e concorrência.
 
 </section>
 
@@ -38,25 +41,19 @@ A implementação é feita em Python puro (sem dependências externas), com comu
 <div align="center">
   <img src="docs/arquitetura_geral.png">
   <br>
-  <strong>Broker como ponto central de integração</strong>
+  <strong>Arquitetura geral do sistema</strong>
   <br><br>
 </div>
 
-O sistema é composto por quatro processos independentes:
+O sistema é composto por quatro processos independentes executados separadamente:
 
-- **Broker (`broker.py`)**  
-  Mantém conexões, recebe telemetria, distribui dados e gerencia estado global.
+O broker (`broker.py`) mantém todas as conexões TCP ativas, recebe telemetria via UDP e distribui dados para clientes inscritos. Ele também centraliza o estado global dos atuadores e calcula valores agregados dos sensores.
 
-- **Sensores (`sensor_*.py`)**  
-  Publicam dados via UDP e mantêm canal TCP para sincronização.
+Sensores (`sensor_*.py`) possuem duas responsabilidades principais: envio contínuo de telemetria via UDP e manutenção de uma conexão TCP persistente para sincronização de estado com o broker.
 
-- **Atuadores (`atuador_*.py`)**  
-  Recebem comandos via TCP e reportam estado ao broker.
+Atuadores (`atuador_*.py`) mantêm conexão TCP com o broker e ficam em loop aguardando comandos. Ao receber um comando, atualizam seu estado interno e notificam o broker.
 
-- **Cliente (`cliente.py`)**  
-  Interface interativa para monitoramento e envio de comandos.
-
-Toda comunicação ocorre exclusivamente via broker, eliminando dependências diretas entre componentes.
+O cliente (`cliente.py`) conecta via TCP, assina sensores e envia comandos para atuadores, funcionando como interface de interação com o sistema.
 
 </section>
 
@@ -65,15 +62,13 @@ Toda comunicação ocorre exclusivamente via broker, eliminando dependências di
 <section id="comunicacao">
 <h2>Comunicação</h2>
 
-O sistema utiliza dois protocolos com papéis bem definidos:
+A comunicação é dividida entre dois canais distintos:
 
-- **UDP (porta 5000)**  
-  Usado por sensores para envio contínuo de telemetria (~1ms). Não há garantia de entrega, priorizando baixa latência.
+Sensores utilizam UDP (porta 5000) para envio de telemetria em alta frequência. Esse canal não possui garantia de entrega nem controle de fluxo, reduzindo overhead e evitando bloqueios.
 
-- **TCP (portas 5001 e 5002)**  
-  Usado para registro, controle, comandos e distribuição confiável de mensagens.
+TCP é utilizado para controle (portas 5001 e 5002), incluindo registro de dispositivos, comandos, sincronização de estado e comunicação com clientes. Todas as mensagens críticas passam por esse canal.
 
-O broker mantém apenas o último valor de cada sensor, evitando acúmulo de mensagens em cenários de alta frequência.
+O broker mantém apenas o último valor recebido de cada sensor, evitando filas e crescimento de memória em cenários de alta taxa de envio.
 
 </section>
 
@@ -82,8 +77,93 @@ O broker mantém apenas o último valor de cada sensor, evitando acúmulo de men
 <section id="protocolo">
 <h2>Protocolo</h2>
 
-Mensagens são codificadas em JSON. Em TCP, é utilizado **NDJSON** (uma mensagem por linha).
+Todas as mensagens utilizam JSON. Em TCP, o protocolo é baseado em NDJSON (uma mensagem por linha delimitada por `\n`), permitindo parsing incremental com buffer.
 
-### Registro de sensor
-```json
-{ "register": "sensor", "type": "velocidade" }
+Cada dispositivo inicia com um handshake de registro, informando tipo e identificador. Após o registro, o broker associa o socket ao dispositivo e passa a tratá-lo como ativo.
+
+Sensores enviam telemetria via UDP contendo `id`, `type`, `data` e `ts`. Atuadores recebem comandos via TCP e respondem com seu estado atualizado.
+
+O broker também envia mensagens de push para sensores sempre que o estado de um atuador muda, garantindo sincronização imediata sem polling.
+
+</section>
+
+---
+
+<section id="concorrencia">
+<h2>Concorrência</h2>
+
+<div align="center">
+  <img src="docs/threading.png">
+  <br>
+  <strong>Modelo de concorrência do broker</strong>
+  <br><br>
+</div>
+
+O broker é multi-threaded e opera com três loops principais: recepção UDP, aceitação de conexões TCP de dispositivos e aceitação de clientes. Cada conexão aceita gera uma thread dedicada responsável por todo o ciclo de vida do socket.
+
+Estruturas compartilhadas como listas de sensores, atuadores e valores agregados são protegidas com `threading.Lock`, garantindo acesso consistente entre threads.
+
+Para agregação de dados, o broker calcula a mediana dos sensores de mesmo tipo e armazena como valor canônico. Esse valor é utilizado para sincronização e correção de divergência entre múltiplas instâncias.
+
+</section>
+
+---
+
+<section id="cliente">
+<h2>Cliente Terminal</h2>
+
+<div align="center">
+  <img src="docs/cliente_monitoramento.gif">
+  <br>
+  <strong>Monitoramento em tempo real</strong>
+  <br><br>
+</div>
+
+O cliente é uma aplicação de terminal que mantém conexão TCP com o broker e recebe telemetria em tempo real apenas dos sensores assinados.
+
+A renderização é feita diretamente no terminal utilizando escape codes ANSI, exibindo valores, gráficos ASCII e indicadores de estado. O cliente também envia comandos para atuadores através do mesmo canal TCP, utilizando mensagens JSON.
+
+Toda a lógica de interface é local — o broker apenas encaminha dados e comandos.
+
+</section>
+
+---
+
+<section id="confiabilidade">
+<h2>Confiabilidade</h2>
+
+O sistema trata falhas de forma explícita. Conexões TCP utilizam timeout e mensagens de keepalive (`ping`) para detectar desconexões.
+
+Todos os componentes implementam reconexão automática, tentando restabelecer a conexão com o broker em intervalos fixos.
+
+Quando um atuador desconecta, o broker remove seu estado, recalcula o estado global e envia atualizações para sensores afetados. Clientes recebem eventos refletindo a mudança de topologia.
+
+Mensagens inválidas são descartadas silenciosamente, evitando interrupção do fluxo principal.
+
+</section>
+
+---
+
+<section id="docker">
+<h2>Docker</h2>
+
+Os componentes são containerizados individualmente, permitindo execução isolada e reproduzível.
+
+O `docker-compose.yml` define todos os serviços e a rede interna. A comunicação ocorre utilizando o nome do serviço `broker` como hostname.
+
+A configuração depende apenas da variável `BROKER_HOST`, permitindo execução distribuída em diferentes máquinas sem alteração de código.
+
+</section>
+
+---
+
+<section id="execucao">
+<h2>Execução</h2>
+
+O sistema pode ser executado diretamente com Python, iniciando cada componente em um terminal separado, ou via Docker Compose.
+
+```bash
+python broker.py
+python sensor_velocidade.py
+python atuador_limitador.py
+python cliente.py
