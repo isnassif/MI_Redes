@@ -1,5 +1,18 @@
-FROM python:3.11-slim
+FROM python:3.11-slim 
+LABEL author="Seu Nome" \
+      description="Atuador limitador de velocidade — PBL Redes" \
+      version="1.0"
+ 
 WORKDIR /app
+ 
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+ 
 COPY atuador_limitador.py .
+ 
 ENV BROKER_HOST=localhost
+ 
+ENV ACTUATOR_ID=""
+ 
 CMD ["python", "-u", "atuador_limitador.py"]
+ 
