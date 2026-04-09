@@ -39,7 +39,6 @@
 <h2>Descrição Geral do Projeto</h2>
 
 <div align="center">
-  <img src="docs/banner.png" alt="[SUGESTÃO] Print de múltiplos terminais lado a lado (use tmux) mostrando o broker, dois sensores e o cliente com gráficos ASCII rodando simultaneamente">
   <br>
   <strong>Sistema distribuído de telemetria veicular em execução</strong>
   <br><br>
@@ -57,7 +56,6 @@ A arquitetura de broker resolve o problema de **alto acoplamento** ponto-a-ponto
 <h2>Arquitetura do Sistema</h2>
 
 <div align="center">
-  <img src="docs/arquitetura_geral.png" alt="[SUGESTÃO] Diagrama no draw.io ou Excalidraw: broker no centro, sensores à esquerda com setas laranja (UDP 5000) e azul (TCP 5001), atuadores à direita com setas azuis bidirecionais (TCP 5001), cliente abaixo com setas azuis (TCP 5002)">
   <br>
   <strong>Arquitetura geral — broker central com sensores, atuadores e clientes</strong>
   <br><br>
@@ -226,8 +224,7 @@ Todo parsing é encapsulado em `try/except json.JSONDecodeError` — mensagens m
 <h2>Concorrência e Sincronização</h2>
 
 <div align="center">
-  <img src="docs/threading.png" alt="[SUGESTÃO] Diagrama com o processo principal do broker no topo, 4 setas para as threads permanentes (handle_udp, handle_tcp_devices, handle_tcp_clients, status_reporter), e de cada servidor de TCP saindo N setas menores representando as threads por conexão">
-  <br>
+ <br>
   <strong>Modelo de threading — threads daemon por conexão</strong>
   <br><br>
 </div>
@@ -257,7 +254,6 @@ state["velocidade"] += (float(sv) - state["velocidade"]) * 0.8
 <h2>Interação via Cliente Terminal</h2>
 
 <div align="center">
-  <img src="docs/cliente_monitoramento.gif" alt="[SUGESTÃO] GIF gravado com asciinema (asciinema rec demo.cast) mostrando: menu principal com dispositivos listados, seleção de dois sensores, tela de monitoramento ao vivo com gráficos ASCII atualizando por ~10s, pressionar q para voltar">
   <br>
   <strong>Monitoramento ao vivo com gráfico ASCII de série temporal</strong>
   <br><br>
@@ -300,7 +296,6 @@ Sensores desconectados durante o monitoramento são marcados com `⚠ ERRO NO SE
 Os testes foram realizados manualmente em ambiente local e com Docker, cobrindo os principais cenários de operação e falha. Todos são reproduzíveis abrindo múltiplos terminais com os arquivos do projeto.
 
 <div align="center">
-  <img src="docs/testes_overview.png" alt="[SUGESTÃO] Print de tela dividida com tmux (4 painéis): broker logando no canto superior esquerdo, dois sensores de velocidade no superior direito, atuador no inferior esquerdo, cliente no monitoramento ao vivo no inferior direito">
   <br>
   <strong>Ambiente de testes com múltiplos componentes simultâneos</strong>
   <br><br>
@@ -331,7 +326,6 @@ python cliente.py  # monitorar velocidade ao vivo; ativar limitador em 120 km/h
 **Esperado:** mensagem `LIMITADOR ATIVADO ≤120 km/h` no terminal do sensor em até 1s. Gráfico de velocidade passa a flutuar abaixo de 120 km/h. Ao desativar, valores voltam a subir livremente.
 
 <div align="center">
-  <img src="docs/teste_limitador.png" alt="[SUGESTÃO] Print do terminal do sensor de velocidade mostrando a mensagem amarela 'LIMITADOR ATIVADO ≤120 km/h' logo após o comando, com os valores seguintes todos abaixo de 120">
   <br>
   <strong>Sensor recebendo push do limitador em tempo real</strong>
   <br><br>
@@ -375,7 +369,6 @@ python cliente.py  # monitorar velocidade ao vivo; ativar limitador em 120 km/h
 <h2>Emulação com Docker</h2>
 
 <div align="center">
-  <img src="docs/docker_ps.png" alt="[SUGESTÃO] Print do 'docker ps' mostrando os contêineres em execução: broker, sensor_velocidade (duas instâncias), sensor_temperatura, atuador_limitador, atuador_resfriamento">
   <br>
   <strong>Múltiplos contêineres em execução simultânea</strong>
   <br><br>
