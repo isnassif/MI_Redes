@@ -1,0 +1,37 @@
+services:
+
+  velocidade-1:
+    image: isnassif/pbl-sensor-velocidade:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
+
+  temperatura-1:
+    image: isnassif/pbl-sensor-temperatura:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
+
+  combustivel-1:
+    image: isnassif/pbl-sensor-combustivel:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
+
+  oleo-1:
+    image: isnassif/pbl-sensor-oleo:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
+
+  limitador-1:
+    image: isnassif/pbl-atuador-limitador:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
+
+  resfriamento-1:
+    image: isnassif/pbl-atuador-resfriamento:latest
+    environment:
+      - BROKER_HOST=${BROKER_HOST}
+    restart: unless-stopped
