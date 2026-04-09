@@ -1,7 +1,6 @@
 <nav id="sumario-completo">
   <h2>Sumário</h2>
   <ul>
-    <li><a href="#descricao-geral">Descrição Geral do Projeto</a></li>
     <li><a href="#arquitetura">Arquitetura do Sistema</a>
       <ul>
         <li><a href="#broker">Broker — Serviço Central de Integração</a></li>
@@ -10,43 +9,25 @@
         <li><a href="#cliente">Cliente Terminal</a></li>
       </ul>
     </li>
-    <li><a href="#comunicacao">Comunicação entre Componentes</a>
+    <li><a href="#estrutura">Estrutura de Diretórios</a></li>
+    <li><a href="#pacotes">Pacotes e Dependências</a></li>
+    <li><a href="#variaveis">Variáveis de Ambiente</a></li>
+    <li><a href="#execucao">Como Executar</a>
       <ul>
-        <li><a href="#udp">Telemetria via UDP</a></li>
-        <li><a href="#tcp">Registro, Controle e Assinatura via TCP</a></li>
+        <li><a href="#sem-docker">Sem Docker</a></li>
+        <li><a href="#local">Teste local com Docker Compose</a></li>
+        <li><a href="#distribuido">Ambiente distribuído — múltiplas máquinas</a></li>
       </ul>
     </li>
-    <li><a href="#protocolo">Protocolo e Formato das Mensagens</a>
+    <li><a href="#uso">Como Usar o Cliente</a></li>
+    <li><a href="#protocolo">Protocolo de Comunicação</a>
       <ul>
-        <li><a href="#handshake">Handshake de Registro</a></li>
         <li><a href="#catalogo">Catálogo de Mensagens</a></li>
-        <li><a href="#encapsulamento">Encapsulamento e Parsing</a></li>
+        <li><a href="#fluxo">Fluxo Completo — Ativação do Limitador</a></li>
       </ul>
     </li>
-    <li><a href="#concorrencia">Concorrência e Sincronização</a></li>
-    <li><a href="#interacao">Interação via Cliente Terminal</a></li>
-    <li><a href="#confiabilidade">Confiabilidade e Tratamento de Falhas</a></li>
-    <li><a href="#docker">Emulação com Docker</a></li>
-    <li><a href="#execucao">Como Executar</a></li>
   </ul>
 </nav>
-
----
-
-<section id="descricao-geral">
-<h2>Descrição Geral do Projeto</h2>
-
-<div align="center">
-  <br>
-  <strong>Sistema distribuído de telemetria veicular em execução</strong>
-  <br><br>
-</div>
-
-Este projeto implementa um **sistema distribuído de telemetria veicular** com arquitetura de broker central e comunicação por publish-subscribe. Sensores virtuais publicam leituras contínuas de velocidade, temperatura, combustível e óleo; atuadores intervêm remotamente no comportamento dos sensores; e um cliente terminal monitora tudo em tempo real e envia comandos.
-
-A arquitetura de broker resolve o problema de **alto acoplamento** ponto-a-ponto: nenhum componente precisa conhecer os outros diretamente. Sensores publicam, atuadores aguardam comandos, e clientes assinam tópicos — toda a coordenação passa pelo broker. Qualquer componente pode entrar ou sair da rede sem derrubar os demais, e todos reconectam automaticamente. O projeto foi desenvolvido em Python 3 sem dependências externas e containerizado com Docker para execução em múltiplas máquinas.
-
-</section>
 
 ---
 
@@ -74,6 +55,8 @@ A arquitetura de broker resolve o problema de **alto acoplamento** ponto-a-ponto
    oleo
 ```
 
+A arquitetura de broker resolve o problema de **alto acoplamento** ponto-a-ponto: nenhum componente precisa conhecer os outros diretamente. Sensores publicam, atuadores aguardam comandos, e clientes assinam tópicos — toda a coordenação passa pelo broker. Qualquer componente pode entrar ou sair da rede sem derrubar os demais, e todos reconectam automaticamente.
+
 <section id="broker">
 <h3>Broker — Serviço Central de Integração</h3>
 
@@ -84,7 +67,7 @@ O `broker.py` é o único componente que conhece todos os outros. Ele recebe tel
 <section id="sensores">
 <h3>Sensores Virtuais</h3>
 
-Cada sensor simula a física de um componente real: temperatura aquece com a velocidade e resfria com o atuador; óleo desgasta mais em temperaturas altas; combustível consome proporcionalmente à velocidade. Cada processo opera com duas threads — `keepalive_loop` (TCP com o broker) e `publish_loop` (telemetria UDP a cada 1 ms) — para que a rede TCP nunca bloqueie a publicação.
+Cada sensor simula a física de um componente real: temperatura aquece com a velocidade e resfria com o atuador; óleo desgasta mais em temperaturas altas; combustível consome proporcionalmente à velocidade. Cada processo opera com duas threads — `keepalive_loop` (TCP com o broker) e `publish_loop` (telemetria UDP a cada 1ms) — para que a rede TCP nunca bloqueie a publicação.
 
 | Arquivo | Tipo | Unidade | Faixa |
 |---|---|---|---|
@@ -98,7 +81,7 @@ Cada sensor simula a física de um componente real: temperatura aquece com a vel
 <section id="atuadores">
 <h3>Atuadores</h3>
 
-Atuadores não publicam telemetria — apenas aguardam comandos do broker e notificam seu estado após cada mudança via `{"status": {...}}`. O broker usa essa notificação para recalcular o estado global e propagar para os sensores.
+Atuadores não publicam telemetria — apenas aguardam comandos do broker e notificam seu estado após cada mudança via `{"status": {...}}`. O broker usa essa notificação para recalcular o estado global e propagá-lo para os sensores afetados.
 
 | Arquivo | Tipo | Efeito |
 |---|---|---|
@@ -117,87 +100,276 @@ O `cliente.py` é uma aplicação interativa construída com ANSI escape codes. 
 
 ---
 
-<section id="comunicacao">
-<h2>Comunicação entre Componentes</h2>
+<section id="estrutura">
+<h2>Estrutura de Diretórios</h2>
 
-<section id="udp">
-<h3>Telemetria via UDP (porta 5000)</h3>
-
-Sensores publicam a cada 1 ms via UDP — sem handshake, sem confirmação, sem controle de fluxo. Para telemetria contínua de alta frequência isso é vantagem: um pacote perdido é irrelevante quando o próximo chega em 1 ms. O broker só processa telemetria de sensores previamente registrados via TCP, descartando pacotes de IDs desconhecidos.
-
-```json
-{ "id": "velocidade-a3f9c1", "type": "velocidade", "data": { "valor": 143.7, "unidade": "km/h" }, "ts": 1716500123.441 }
+```
+pbl/
+├── broker/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── broker.py
+│
+├── sensor-velocidade/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── sensor_velocidade.py
+│
+├── sensor-temperatura/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── sensor_temperatura.py
+│
+├── sensor-combustivel/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── sensor_combustivel.py
+│
+├── sensor-oleo/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── sensor_oleo.py
+│
+├── atuador-limitador/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── atuador_limitador.py
+│
+├── atuador-resfriamento/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── atuador_resfriamento.py
+│
+├── cliente/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── cliente.py
+│
+├── docker-compose.local.yml
+├── docker-compose.broker.yml
+└── docker-compose.dispositivos.yml
 ```
 
 </section>
 
-<section id="tcp">
-<h3>Registro, Controle e Assinatura via TCP (portas 5001 e 5002)</h3>
+---
 
-A porta 5001 serve três propósitos simultâneos durante toda a vida de um dispositivo: o handshake de registro inicial, o heartbeat bidirecional (ping/pong a cada 30s para detectar conexões zumbi), e o canal de push ativo de estado do broker para os sensores. A conexão é mantida aberta permanentemente.
+<section id="pacotes">
+<h2>Pacotes e Dependências</h2>
 
-A porta 5002 é exclusiva para clientes: ao conectar, recebem a lista de dispositivos ativos e podem assinar tópicos de sensores para receber telemetria em streaming, ou enviar comandos para atuadores especificando `target_id` ou `target_type`.
+O projeto **não possui dependências externas**. Utiliza apenas a biblioteca padrão do Python 3 — nenhum `pip install` de terceiros é necessário.
 
-O broker não enfileira telemetria para clientes — mantém apenas o `last_value` de cada tópico e faz broadcast do mais recente, evitando crescimento de memória com clientes lentos.
+| Módulo | Uso |
+|---|---|
+| `socket` | Comunicação UDP (telemetria) e TCP (controle e assinatura) |
+| `threading` | Threads paralelas por conexão e loops de keepalive |
+| `json` | Serialização de todas as mensagens do protocolo |
+| `uuid` | Geração de IDs únicos para sensores e atuadores |
+| `time` | Timestamps de telemetria e intervalos de reconexão |
+| `statistics` | Cálculo da mediana para o valor canônico por tipo de sensor |
+| `os` / `sys` | Leitura de variáveis de ambiente e saída padrão |
+
+**Requisitos de ambiente:** Python 3.9 ou superior (execução direta) · Docker 24+ (execução em container).
+
+</section>
+
+---
+
+<section id="variaveis">
+<h2>Variáveis de Ambiente</h2>
+
+| Variável | Padrão | Componente | Descrição |
+|---|---|---|---|
+| `BROKER_HOST` | `localhost` | Todos (exceto broker) | IP ou hostname da máquina onde o broker está rodando |
+| `SENSOR_ID` | `<tipo>-<uuid>` | Sensores | ID único do sensor — gerado automaticamente se ausente |
+| `ACTUATOR_ID` | `<tipo>-<uuid>` | Atuadores | ID único do atuador — gerado automaticamente se ausente |
+
+</section>
+
+---
+
+<section id="execucao">
+<h2>Como Executar</h2>
+
+<section id="sem-docker">
+<h3>Sem Docker</h3>
+
+<div align="center">
+  <br>
+  <strong>Execução direta — um terminal por processo, broker sempre primeiro</strong>
+  <br><br>
+</div>
+
+Requisito: Python 3.9+. Abra um terminal por processo, na ordem abaixo:
+
+```bash
+# 1. Broker (sempre primeiro)
+python broker/broker.py
+
+# 2. Sensores (terminais separados)
+python sensor-velocidade/sensor_velocidade.py
+python sensor-temperatura/sensor_temperatura.py
+python sensor-combustivel/sensor_combustivel.py
+python sensor-oleo/sensor_oleo.py
+
+# 3. Atuadores (terminais separados)
+python atuador-limitador/atuador_limitador.py
+python atuador-resfriamento/atuador_resfriamento.py
+
+# 4. Cliente
+python cliente/cliente.py
+```
+
+Para apontar um componente para um broker em outro endereço:
+
+```bash
+BROKER_HOST=192.168.0.10 python sensor-velocidade/sensor_velocidade.py
+```
+
+</section>
+
+<section id="local">
+<h3>Teste local com Docker Compose</h3>
+
+<div align="center">
+  <br>
+  <strong>Ambiente completo em uma única máquina — sem nenhum arquivo .py local</strong>
+  <br><br>
+</div>
+
+O Docker baixa todas as imagens do Docker Hub automaticamente. Nenhum arquivo `.py` precisa estar na máquina.
+
+```bash
+# Subir tudo
+docker compose -f docker-compose.local.yml up
+
+# Em segundo plano
+docker compose -f docker-compose.local.yml up -d
+
+# Ver logs de um serviço específico
+docker compose -f docker-compose.local.yml logs -f velocidade-1
+
+# Escalar horizontalmente (ex: 3 sensores de velocidade)
+docker compose -f docker-compose.local.yml up --scale velocidade-1=3
+
+# Parar tudo
+docker compose -f docker-compose.local.yml down
+```
+
+Para o cliente interativo (o `-it` é obrigatório):
+
+```bash
+docker run -it --rm \
+  --network pbl_pbl-net \
+  -e BROKER_HOST=broker \
+  SEU_USUARIO/pbl-cliente:latest
+```
+
+> O nome da rede `pbl_pbl-net` é gerado automaticamente com base no nome da pasta do projeto. Confirme com `docker network ls` se necessário.
+
+</section>
+
+<section id="distribuido">
+<h3>Ambiente distribuído — múltiplas máquinas</h3>
+
+<div align="center">
+  <br>
+  <strong>Execução distribuída — broker em uma máquina, dispositivos em outras</strong>
+  <br><br>
+</div>
+
+**Passo 1 — Descobrir o IP da máquina que vai rodar o broker:**
+
+| Sistema | Comando |
+|---|---|
+| Linux / Mac | `ip a` ou `ifconfig` |
+| Windows | `ipconfig` |
+
+**Passo 2 — Na máquina do broker:**
+
+```bash
+docker compose -f docker-compose.broker.yml up
+```
+
+**Passo 3 — Nas máquinas dos dispositivos**, passando o IP do broker:
+
+```bash
+# Linux / Mac
+BROKER_HOST=192.168.0.10 docker compose -f docker-compose.dispositivos.yml up
+
+# Windows PowerShell
+$env:BROKER_HOST="192.168.0.10"; docker compose -f docker-compose.dispositivos.yml up
+
+# Windows CMD
+set BROKER_HOST=192.168.0.10 && docker compose -f docker-compose.dispositivos.yml up
+```
+
+**Passo 4 — Cliente** (qualquer máquina com Docker):
+
+```bash
+docker run -it --rm \
+  -e BROKER_HOST=192.168.0.10 \
+  SEU_USUARIO/pbl-cliente:latest
+```
 
 </section>
 </section>
 
 ---
 
+<section id="uso">
+<h2>Como Usar o Cliente</h2>
+
+<div align="center">
+  <br>
+  <strong>Monitoramento ao vivo com gráfico ASCII de série temporal</strong>
+  <br><br>
+</div>
+
+Ao iniciar, o cliente conecta ao broker e exibe a lista de dispositivos ativos:
+
+```
+Dispositivos conectados:
+  [1] velocidade-a3f9c1   (velocidade)
+  [2] temperatura-b2e4f7  (temperatura)
+  [3] limitador-c9d1e2    (limitador)
+  [4] resfriamento-f3a8b1 (resfriamento)
+
+Selecione um sensor para monitorar ou um atuador para comandar:
+```
+
+**Monitorando um sensor**, o terminal exibe em tempo real (10 Hz):
+
+```
+  Velocidade 1  (velocidade)
+    143.7 km/h  ████████████░░░░░░░░░░  lag: 12ms
+  ┌────────────────────────────────────────────────────────────┐
+  │                              ▂▃▄▅▆▇█▆▄▂        ▃▄▅▆▄▂▁   │
+  └────────────────────────────────────────────────────────────┘
+```
+
+A barra muda de cor conforme o nível de alerta. Sensores desconectados durante o monitoramento são marcados com `⚠ ERRO NO SENSOR` imediatamente.
+
+**Comandando um atuador:**
+
+```
+Atuador: limitador-c9d1e2
+  [1] Ativar limitador   → define velocidade máxima em km/h
+  [2] Desativar limitador
+  [3] Aplicar a todos os limitadores conectados
+
+Atuador: resfriamento-f3a8b1
+  [1] Ligar resfriamento
+  [2] Desligar resfriamento
+  [3] Aplicar a todos os resfriamentos conectados
+```
+
+</section>
+
+---
+
 <section id="protocolo">
-<h2>Protocolo e Formato das Mensagens</h2>
-
-<section id="handshake">
-<h3>Handshake de Registro</h3>
-
-Todo dispositivo ao conectar na porta 5001 envia imediatamente uma mensagem de registro. O campo `id` é opcional — o broker gera um UUID se ausente. Para sensores, a resposta inclui o estado atual dos atuadores e o valor canônico do tipo, para que o sensor não comece divergente das instâncias já conectadas.
-
-**Sensor → Broker:**
-```json
-{ "register": "sensor", "type": "velocidade", "id": "velocidade-a3f9c1" }
-```
-
-**Broker → Sensor:**
-```json
-{ "registered": true, "id": "velocidade-a3f9c1", "state": { "limitador_ativo": false, "limit_speed": 320.0 }, "shared_value": 157.3 }
-```
-
-Quando um atuador muda de estado, o broker empurra imediatamente o novo estado para os sensores afetados (`limitador` → `velocidade`; `resfriamento` → `temperatura`):
-
-```json
-{ "state": { "limitador_ativo": true, "limit_speed": 120.0 }, "shared_value": 98.3 }
-```
-
-</section>
-
-<section id="catalogo">
-<h3>Catálogo de Mensagens</h3>
-
-| Direção | Mensagem | Campos principais |
-|---|---|---|
-| Sensor/Atuador → Broker (TCP 5001) | Registro | `register`, `type`, `id` |
-| Broker → Dispositivo (TCP 5001) | Confirmação | `registered`, `id`, `state?`, `shared_value?` |
-| Sensor → Broker (UDP 5000) | Telemetria | `id`, `type`, `data`, `ts` |
-| Broker → Sensor (TCP 5001) | Push de estado | `state`, `shared_value?` |
-| Dispositivo ↔ Broker | Keepalive | `ping` (texto puro) |
-| Atuador → Broker (TCP 5001) | Notificação de estado | `status: {active, limit?}` |
-| Cliente → Broker (TCP 5002) | Assinatura | `subscribe: [tópicos]` |
-| Broker → Cliente (TCP 5002) | Telemetria / dispositivos / eventos | `id/type/data/ts`, `event: device_list`, `event: actuator_disconnected` |
-| Cliente → Broker (TCP 5002) | Comando | `command: {target_id\|target_type, data}` |
-
-**Fluxo completo — ativação do limitador:**
-```
-Cliente → Broker:   {"command": {"target_id": "limitador-b2e4f7", "data": {"active": true, "limit": 120}}}
-Broker  → Atuador:  {"command": {"active": true, "limit": 120}}
-Atuador → Broker:   {"status": {"active": true, "limit": 120.0}}
-Broker  → Sensores: {"state": {"limitador_ativo": true, "limit_speed": 120.0}, "shared_value": 87.4}
-```
-
-</section>
-
-<section id="encapsulamento">
-<h3>Encapsulamento e Parsing</h3>
+<h2>Protocolo de Comunicação</h2>
 
 Todas as mensagens TCP usam **JSON delimitado por newline** (`\n`) — cada mensagem é uma linha JSON terminada por `\n`. Isso permite parsing incremental sem conhecer o tamanho da mensagem de antemão, lidando corretamente com fragmentação TCP e coalescing:
 
@@ -211,138 +383,34 @@ while True:
         msg = json.loads(line.strip().decode())
 ```
 
-Todo parsing é encapsulado em `try/except json.JSONDecodeError` — mensagens malformadas são descartadas sem encerrar a conexão. Campos ausentes são sempre acessados com `.get()` e valores padrão explícitos.
+Todo parsing é encapsulado em `try/except json.JSONDecodeError` — mensagens malformadas são descartadas sem encerrar a conexão.
 
-</section>
-</section>
+<section id="catalogo">
+<h3>Catálogo de Mensagens</h3>
 
----
-
-<section id="concorrencia">
-<h2>Concorrência e Sincronização</h2>
-
-<div align="center">
- <br>
-  <strong>Modelo de threading — threads daemon por conexão</strong>
-  <br><br>
-</div>
-
-O broker roda quatro threads permanentes desde a startup, mais uma thread daemon por conexão aceita:
-
-| Thread permanente | Função |
-|---|---|
-| `handle_udp` | Recepção de telemetria UDP |
-| `handle_tcp_devices` | `accept()` de sensores e atuadores (porta 5001) |
-| `handle_tcp_clients` | `accept()` de clientes (porta 5002) |
-| `status_reporter` | Log de estado a cada 15s |
-
-Cinco locks protegem conjuntos distintos de dados compartilhados (`devices_lock`, `shared_values_lock`, `actuator_state_lock`, `subscribers_lock`, `last_values_lock`). Como `threading.Lock` não é reentrante, funções que operam dentro de um lock calculam os dados necessários e operam fora para evitar deadlock.
-
-O broker mantém um **valor canônico** por tipo de sensor — a mediana dos valores recebidos de todas as instâncias daquele tipo — e o empurra de volta para os sensores, forçando convergência gradual. A mediana foi escolhida em vez da média por ser resistente a outliers: um sensor com valor anômalo não distorce o canônico. Os sensores aplicam o valor canônico com interpolação suave ao recebê-lo:
-
-```python
-state["velocidade"] += (float(sv) - state["velocidade"]) * 0.8
-```
-
-</section>
-
----
-
-<section id="interacao">
-<h2>Interação via Cliente Terminal</h2>
-
-<div align="center">
-  <br>
-  <strong>Monitoramento ao vivo com gráfico ASCII de série temporal</strong>
-  <br><br>
-</div>
-
-O cliente permite selecionar remotamente qualquer sensor conectado e visualizar seus dados em tempo real, com atualização a 10 Hz. Para cada sensor monitorado são exibidos: valor atual colorido por nível de alerta, barra de progresso, latência de entrega em ms, e gráfico de série temporal em ASCII com os últimos 60 valores.
-
-```
-  Velocidade 1  (velocidade)
-    143.7 km/h  ████████████░░░░░░░░░░  lag: 12ms
-  ┌────────────────────────────────────────────────────────────┐
-  │                              ▂▃▄▅▆▇█▆▄▂        ▃▄▅▆▄▂▁   │
-  └────────────────────────────────────────────────────────────┘
-```
-
-Sensores desconectados durante o monitoramento são marcados com `⚠ ERRO NO SENSOR`. O mesmo terminal permite enviar comandos para atuadores — ativar o limitador com um valor em km/h, ou ligar/desligar o resfriamento — selecionando um atuador específico ou todos do tipo.
-
-</section>
-
----
-
-<section id="confiabilidade">
-<h2>Confiabilidade e Tratamento de Falhas</h2>
-
-**Desconexão de sensor:** o broker remove o sensor, recalcula a mediana sem ele e envia `device_list` atualizada para todos os clientes. O cliente exibe `⚠ ERRO NO SENSOR` imediatamente.
-
-**Desconexão de atuador ativo:** caso crítico — sem tratamento, os sensores ficariam restritos indefinidamente. O broker trata isso no bloco `finally` da conexão: recalcula o estado agregado sem o atuador e empurra imediatamente o novo estado para os sensores afetados. Clientes recebem um evento `actuator_disconnected`.
-
-**Reconexão automática:** todos os componentes detectam desconexão quando `recv()` retorna vazio ou `send()` lança `OSError` e reconectam a cada 3 segundos automaticamente, preservando o estado local.
-
-**Timeout e keepalive:** timeout de 35s no `recv()` TCP dos dispositivos. Ao disparar, enviam `ping\n` — sem resposta, encerram e reconectam. O broker usa timeout de 30s e envia `ping\n` ativamente.
-
-</section>
-
----
-
-<section id="docker">
-<h2>Emulação com Docker</h2>
-
-<div align="center">
-  <br>
-  <strong>Múltiplos contêineres em execução simultânea</strong>
-  <br><br>
-</div>
-
-Cada componente tem seu próprio `Dockerfile` baseado em `python:3.11-slim`. A variável `BROKER_HOST` é o único ponto de configuração para apontar qualquer componente para um broker em qualquer endereço de rede.
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY atuador_limitador.py .
-ENV BROKER_HOST=localhost
-CMD ["python", "-u", "atuador_limitador.py"]
-```
-
-O `docker-compose.yml` orquestra o ambiente completo. Para escalar horizontalmente e testar convergência:
-
-```bash
-docker compose up --build
-docker compose up --scale sensor_velocidade_1=3
-```
-
-</section>
-
----
-
-<section id="execucao">
-<h2>Como Executar</h2>
-
-**Sem Docker** (Python 3.9+, sem dependências externas):
-```bash
-python broker.py
-python sensor_velocidade.py
-python sensor_temperatura.py
-python sensor_combustivel.py
-python sensor_oleo.py
-python atuador_limitador.py
-python atuador_resfriamento.py
-python cliente.py
-```
-
-**Com Docker Compose:**
-```bash
-docker compose up --build
-python cliente.py  # BROKER_HOST=localhost por padrão
-```
-
-| Variável | Padrão | Descrição |
+| Direção | Mensagem | Campos principais |
 |---|---|---|
-| `BROKER_HOST` | `localhost` | IP ou hostname do broker |
-| `SENSOR_ID` | `<tipo>-<uuid>` | ID único — gerado automaticamente se ausente |
-| `ACTUATOR_ID` | `<tipo>-<uuid>` | ID único — gerado automaticamente se ausente |
+| Sensor/Atuador → Broker (TCP 5001) | Registro | `register`, `type`, `id` |
+| Broker → Dispositivo (TCP 5001) | Confirmação | `registered`, `id`, `state?`, `shared_value?` |
+| Sensor → Broker (UDP 5000) | Telemetria | `id`, `type`, `data`, `ts` |
+| Broker → Sensor (TCP 5001) | Push de estado | `state`, `shared_value?` |
+| Dispositivo ↔ Broker | Keepalive | `ping` (texto puro) |
+| Atuador → Broker (TCP 5001) | Notificação de estado | `status: {active, limit?}` |
+| Cliente → Broker (TCP 5002) | Assinatura | `subscribe: [tópicos]` |
+| Broker → Cliente (TCP 5002) | Telemetria / eventos | `id/type/data/ts`, `event: device_list`, `event: actuator_disconnected` |
+| Cliente → Broker (TCP 5002) | Comando | `command: {target_id\|target_type, data}` |
 
+</section>
+
+<section id="fluxo">
+<h3>Fluxo Completo — Ativação do Limitador</h3>
+
+```
+Cliente → Broker:   {"command": {"target_id": "limitador-b2e4f7", "data": {"active": true, "limit": 120}}}
+Broker  → Atuador:  {"command": {"active": true, "limit": 120}}
+Atuador → Broker:   {"status": {"active": true, "limit": 120.0}}
+Broker  → Sensores: {"state": {"limitador_ativo": true, "limit_speed": 120.0}, "shared_value": 87.4}
+```
+
+</section>
 </section>
