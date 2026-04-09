@@ -13,27 +13,27 @@
     <li><a href="#comunicacao">Comunicação entre Componentes</a>
       <ul>
         <li><a href="#udp">Telemetria via UDP</a></li>
-        <li><a href="#tcp-dispositivos">Registro e Controle via TCP (porta 5001)</a></li>
-        <li><a href="#tcp-clientes">Assinatura e Comandos via TCP (porta 5002)</a></li>
+        <li><a href="#tcp-dispositivos">Registro e Controle via TCP</a></li>
+        <li><a href="#tcp-clientes">Assinatura e Comandos</a></li>
+        <li><a href="#perfis-trafego">Perfis de Tráfego e Mensagens Críticas</a></li>
       </ul>
     </li>
-    <li><a href="#protocolo">Protocolo de Comunicação (API Remota)</a>
+    <li><a href="#protocolo">Protocolo e Formato das Mensagens</a>
       <ul>
         <li><a href="#handshake">Handshake de Registro</a></li>
-        <li><a href="#push-estado">Push de Estado — Broker para Sensores</a></li>
-        <li><a href="#mensagens">Catálogo de Mensagens</a></li>
+        <li><a href="#push-estado">Push de Estado</a></li>
+        <li><a href="#catalogo">Catálogo de Mensagens</a></li>
+        <li><a href="#encapsulamento">Encapsulamento e Parsing</a></li>
       </ul>
     </li>
-    <li><a href="#encapsulamento">Encapsulamento e Formato dos Dados</a></li>
-    <li><a href="#concorrencia">Concorrência e Qualidade de Serviço</a>
+    <li><a href="#concorrencia">Concorrência e Sincronização</a>
       <ul>
-        <li><a href="#threading">Threading no Broker</a></li>
+        <li><a href="#threading">Modelo de Threading</a></li>
         <li><a href="#locks">Locks e Seções Críticas</a></li>
-        <li><a href="#mediana">Mediana Canônica e Convergência</a></li>
-        <li><a href="#qos">Separação de Perfis de Tráfego</a></li>
+        <li><a href="#mediana">Mediana Canônica</a></li>
       </ul>
     </li>
-    <li><a href="#interacao">Interação — Cliente Terminal</a></li>
+    <li><a href="#interacao">Interação via Cliente Terminal</a></li>
     <li><a href="#confiabilidade">Confiabilidade e Tratamento de Falhas</a></li>
     <li><a href="#testes">Testes</a></li>
     <li><a href="#docker">Emulação com Docker</a></li>
@@ -48,21 +48,17 @@
 <h2>Descrição Geral do Projeto</h2>
 
 <div align="center">
-  <img src="docs/banner.png" alt="[SUGESTÃO DE IMAGEM] Print de múltiplos terminais lado a lado (use tmux ou split de janelas) mostrando: broker logando registros à esquerda, dois sensores publicando no centro, e o cliente com gráficos ASCII ao vivo à direita — evidencia o sistema distribuído em funcionamento real">
+  <img src="docs/banner.png" alt="[SUGESTÃO DE IMAGEM] Print de múltiplos terminais lado a lado (use tmux) mostrando: broker logando registros à esquerda, dois sensores publicando no centro, e o cliente com gráficos ASCII ao vivo à direita — evidencia o sistema distribuído em funcionamento real">
   <br>
   <strong>Sistema distribuído de telemetria veicular em execução</strong>
   <br><br>
 </div>
 
-Este projeto implementa um **sistema distribuído de telemetria veicular** baseado em arquitetura de broker central e comunicação assíncrona por publish-subscribe. O sistema simula o monitoramento em tempo real de um veículo de alta performance, com sensores publicando leituras contínuas de velocidade, temperatura do motor, nível de combustível e nível de óleo, e atuadores capazes de intervir no comportamento do veículo remotamente — tudo coordenado por um serviço central de integração.
+Este projeto implementa um **sistema distribuído de telemetria veicular** baseado em arquitetura de broker central e comunicação assíncrona por publish-subscribe. O sistema simula o monitoramento em tempo real de um veículo, com sensores publicando leituras contínuas de velocidade, temperatura do motor, nível de combustível e nível de óleo, e atuadores capazes de intervir no comportamento do veículo remotamente.
 
-O problema central que motivou o projeto é o **alto acoplamento** que ocorre em arquiteturas ponto-a-ponto tradicionais: cada cliente precisaria conhecer o endereço de cada sensor, cada sensor precisaria saber quem está ouvindo, e qualquer mudança na topologia exigiria reconfiguração de todos os participantes. Com um broker intermediário, sensores simplesmente publicam dados, atuadores simplesmente aguardam comandos, e clientes simplesmente assinam tópicos — nenhum componente precisa conhecer os demais diretamente.
+O problema central que motivou a escolha dessa arquitetura é o **alto acoplamento** que ocorre em sistemas ponto-a-ponto tradicionais: cada cliente precisaria conhecer o endereço de cada sensor, e qualquer mudança na topologia exigiria reconfiguração de todos os participantes. Com um broker intermediário, sensores simplesmente publicam dados, atuadores simplesmente aguardam comandos, e clientes simplesmente assinam tópicos — nenhum componente precisa conhecer os demais diretamente.
 
-O sistema lida com um perfil de tráfego muito intenso: sensores publicam a cada **1 milissegundo**, o que equivale a 1.000 mensagens por segundo por sensor. Com quatro tipos de sensores — cada tipo podendo ter múltiplas instâncias simultâneas —, o broker pode receber e processar dezenas de milhares de mensagens por segundo, mantendo a telemetria fluindo para os clientes sem latência perceptível. Para isso, o broker usa threading, locks granulares e uma estratégia deliberada de descarte de dados antigos em vez de enfileiramento.
-
-Além da alta taxa de publicação, o sistema implementa **sincronização entre instâncias do mesmo tipo de sensor**: quando dois sensores de velocidade estão conectados simultaneamente, o broker calcula a mediana dos valores e empurra esse valor canônico de volta para ambos, forçando convergência gradual sem que os sensores precisem se comunicar diretamente entre si.
-
-O projeto foi desenvolvido inteiramente em Python 3, sem dependências externas além da biblioteca padrão, e containerizado com Docker para permitir execução e testes em múltiplas máquinas distintas de forma reproduzível.
+Os componentes do sistema são processos completamente independentes entre si. O broker é o único ponto de integração, e sua ausência não impede que os demais processos continuem tentando reconectar automaticamente. Cada sensor, atuador e cliente pode entrar e sair da rede a qualquer momento sem derrubar os outros. O sistema foi desenvolvido inteiramente em Python 3, sem dependências externas além da biblioteca padrão, e containerizado com Docker para permitir execução em múltiplas máquinas distintas de forma reproduzível.
 
 </section>
 
@@ -71,14 +67,14 @@ O projeto foi desenvolvido inteiramente em Python 3, sem dependências externas 
 <section id="arquitetura">
 <h2>Arquitetura do Sistema</h2>
 
-O sistema é composto por quatro tipos de processos independentes que se comunicam exclusivamente através do broker. Essa separação rigorosa de responsabilidades é o que permite escalar qualquer parte do sistema de forma independente — é possível adicionar dez sensores de velocidade sem alterar nenhuma linha do broker, do cliente ou dos atuadores.
-
 <div align="center">
-  <img src="docs/arquitetura_geral.png" alt="[SUGESTÃO DE IMAGEM] Diagrama criado no draw.io ou Excalidraw mostrando o broker no centro com três grupos ao redor: à esquerda os quatro tipos de sensores com setas laranja (UDP) e azul (TCP) apontando para o broker; à direita os dois atuadores com setas azuis bidirecionais; abaixo o cliente com setas azuis bidirecionais. Inclua as portas (UDP 5000, TCP 5001, TCP 5002) nas setas correspondentes">
+  <img src="docs/arquitetura_geral.png" alt="[SUGESTÃO DE IMAGEM] Diagrama criado no draw.io ou Excalidraw mostrando o broker no centro com três grupos ao redor: à esquerda os quatro tipos de sensores com setas laranja (UDP 5000) e azul (TCP 5001) apontando para o broker; à direita os dois atuadores com setas azuis bidirecionais (TCP 5001); abaixo o cliente com setas azuis bidirecionais (TCP 5002). Inclua os nomes das portas nas setas">
   <br>
   <strong>Arquitetura geral — broker central com sensores, atuadores e clientes</strong>
   <br><br>
 </div>
+
+O sistema é composto por quatro tipos de processos independentes que se comunicam exclusivamente por meio do broker. Essa separação rigorosa de responsabilidades é o que permite escalar qualquer parte do sistema de forma independente — é possível adicionar dez sensores de velocidade sem alterar nenhuma linha do broker, do cliente ou dos atuadores.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -96,8 +92,8 @@ O sistema é composto por quatro tipos de processos independentes que se comunic
          ▲  UDP 5000        ▲  TCP 5001        ▲  TCP 5002
          │                  │                   │
    [Sensores]          [Atuadores]          [Clientes]
-   velocidade          limitador            dashboard
-   temperatura         resfriamento         terminal
+   velocidade          limitador            terminal
+   temperatura         resfriamento
    combustivel
    oleo
 ```
@@ -105,34 +101,34 @@ O sistema é composto por quatro tipos de processos independentes que se comunic
 <section id="broker">
 <h3>Broker — Serviço Central de Integração</h3>
 
-O `broker.py` é o coração do sistema. Ele é o único componente que conhece todos os outros e é responsável por três funções distintas e simultâneas: receber telemetria dos sensores via UDP, gerenciar as conexões persistentes de sensores e atuadores via TCP na porta 5001, e servir os clientes assinantes via TCP na porta 5002.
+O `broker.py` é o único componente que conhece todos os outros. Sua função é receber telemetria dos sensores, gerenciar conexões persistentes de dispositivos e servir clientes assinantes — tudo simultaneamente, em threads separadas.
 
-Internamente, o broker mantém dois dicionários principais — `sensors` e `actuators` — que mapeiam o ID de cada dispositivo para sua entrada completa, incluindo o socket TCP ativo, o tipo, e o estado atual. Esses dicionários são protegidos por `threading.Lock` e atualizados atomicamente sempre que um dispositivo conecta ou desconecta.
+Internamente, o broker mantém dois dicionários principais, `sensors` e `actuators`, que mapeiam o ID de cada dispositivo para sua entrada completa: socket TCP ativo, tipo, endereço remoto e estado atual. Esses dicionários são protegidos por `threading.Lock` e atualizados atomicamente a cada conexão ou desconexão.
 
-Uma das responsabilidades mais importantes do broker é o **recálculo do estado agregado dos atuadores**. Quando múltiplos limitadores estão conectados simultaneamente, o broker seleciona o **limite mais restritivo** entre os ativos. Quando múltiplos atuadores de resfriamento estão presentes, a lógica é OR — basta um estar ativo para o resfriamento global ser considerado ativo. Esse recálculo é disparado em qualquer mudança: conexão, desconexão, ou atualização de estado de qualquer atuador.
+O broker também é responsável pelo **recálculo do estado agregado dos atuadores**. Quando múltiplos limitadores estão ativos simultaneamente, ele seleciona o limite mais restritivo entre todos. Quando múltiplos atuadores de resfriamento estão presentes, a lógica é OR — basta um estar ativo. Esse recálculo é disparado em qualquer mudança de estado: nova conexão, desconexão, ou atualização enviada por um atuador.
 
 </section>
 
 <section id="sensores">
 <h3>Sensores Virtuais</h3>
 
-Cada sensor é um processo Python independente que simula a física de um componente real do veículo. A simulação não é trivial: cada sensor mantém um estado interno que evolui com ruído estocástico, influência de outros parâmetros do veículo, e restrições físicas. O sensor de temperatura, por exemplo, aquece proporcionalmente à velocidade simulada e resfria quando o atuador de resfriamento está ativo. O sensor de óleo desgasta mais rapidamente quando a temperatura está alta.
+Cada sensor é um processo Python independente que simula a física de um componente real do veículo. O estado interno de cada sensor evolui com ruído estocástico, influência de outros parâmetros e restrições físicas. O sensor de temperatura aquece proporcionalmente à velocidade simulada internamente e resfria quando o atuador correspondente está ativo. O sensor de óleo desgasta mais rapidamente em temperaturas altas.
 
-| Arquivo | Tipo | Unidade | Faixa | Influências |
+| Arquivo | Tipo | Unidade | Faixa | Influências externas |
 |---|---|---|---|---|
 | `sensor_velocidade.py` | `velocidade` | km/h | 0 – 320 | Atuador limitador |
-| `sensor_temperatura.py` | `temperatura` | °C | 60 – 145 | Velocidade, atuador de resfriamento |
-| `sensor_combustivel.py` | `combustivel` | % | 0 – 100 | Velocidade (consumo proporcional) |
-| `sensor_oleo.py` | `oleo` | % | 0 – 100 | Temperatura (desgaste maior com calor) |
+| `sensor_temperatura.py` | `temperatura` | °C | 60 – 145 | Atuador de resfriamento |
+| `sensor_combustivel.py` | `combustivel` | % | 0 – 100 | — |
+| `sensor_oleo.py` | `oleo` | % | 0 – 100 | — |
 
-Cada sensor opera com duas threads internas: `keepalive_loop`, que mantém a conexão TCP com o broker e processa mensagens de push de estado recebidas, e `publish_loop`, que gera e envia telemetria UDP em loop contínuo. Essa separação garante que uma lentidão na rede TCP nunca atrase a publicação de dados, e vice-versa.
+Cada sensor opera com duas threads internas: `keepalive_loop`, que mantém a conexão TCP com o broker e processa mensagens de push de estado, e `publish_loop`, que gera e envia telemetria UDP em loop contínuo a cada 1 ms. Essa separação garante que uma lentidão na rede TCP nunca atrase a publicação de dados.
 
 </section>
 
 <section id="atuadores">
 <h3>Atuadores</h3>
 
-Os atuadores são processos que não publicam telemetria — eles apenas aguardam comandos do broker e notificam seu estado atual. Ao receber um comando, o atuador atualiza seu estado interno, imprime uma mensagem no terminal e envia `{"status": {...}}` de volta ao broker, que usa essa informação para recalcular o estado global e propagar imediatamente para os sensores afetados.
+Os atuadores são processos que não publicam telemetria — eles apenas aguardam comandos do broker e notificam seu estado atual após cada mudança. Ao receber um comando, o atuador atualiza seu estado interno e envia `{"status": {...}}` de volta ao broker, que usa essa informação para recalcular o estado global e propagar imediatamente para os sensores afetados.
 
 | Arquivo | Tipo | Efeito nos Sensores |
 |---|---|---|
@@ -144,7 +140,7 @@ Os atuadores são processos que não publicam telemetria — eles apenas aguarda
 <section id="cliente">
 <h3>Cliente Terminal</h3>
 
-O `cliente.py` é uma aplicação de terminal completa com interface visual em modo texto, construída inteiramente com ANSI escape codes sem dependências externas. Ao conectar, ele recebe imediatamente a lista de dispositivos conectados no broker e pode assinar tópicos de sensores para receber telemetria ao vivo. O monitoramento exibe gráficos de série temporal em ASCII com atualização a 10 Hz, barras de progresso coloridas por nível de alerta, e indicação de latência em milissegundos em tempo real.
+O `cliente.py` é uma aplicação de terminal interativa construída inteiramente com ANSI escape codes, sem dependências externas. Ao conectar, recebe automaticamente a lista de dispositivos ativos no broker. A partir daí, o operador pode selecionar sensores para monitoramento ao vivo — com gráficos de série temporal em ASCII, barras de progresso coloridas por nível de alerta e latência de entrega em tempo real — e enviar comandos para atuadores pelo mesmo terminal.
 
 </section>
 </section>
@@ -154,43 +150,42 @@ O `cliente.py` é uma aplicação de terminal completa com interface visual em m
 <section id="comunicacao">
 <h2>Comunicação entre Componentes</h2>
 
-A escolha de protocolos de transporte foi deliberada e baseada no perfil de cada tipo de dado. O sistema não usa um único protocolo para tudo — ele usa UDP onde a velocidade e o volume são críticos, e TCP onde a confiabilidade e a ordem das mensagens são essenciais.
+A escolha dos protocolos de transporte foi deliberada: o sistema usa UDP para telemetria contínua, onde a velocidade importa mais que a garantia de entrega, e TCP para controle e comandos, onde a confiabilidade e a ordem são essenciais.
 
 <section id="udp">
 <h3>Telemetria via UDP (porta 5000)</h3>
 
-Sensores publicam leituras a cada 1 milissegundo via UDP. O protocolo foi escolhido especificamente por suas características: sem handshake, sem confirmação de entrega, sem controle de fluxo. Para telemetria contínua de alta frequência, essas são vantagens, não limitações. Se um pacote UDP for perdido, o próximo chega em 1ms — dado que o valor está permanentemente se atualizando, um pacote perdido não representa perda de informação relevante. Usar TCP para telemetria nessa frequência geraria overhead de confirmação completamente desnecessário.
-
-Cada datagrama UDP carrega um payload JSON completo e autocontido, suficiente para identificar o sensor, o tipo de dado, o valor e o instante de geração:
-
-```json
-{
-  "id":   "velocidade-a3f9c1",
-  "type": "velocidade",
-  "data": { "valor": 143.7, "unidade": "km/h" },
-  "ts":   1716500123.441
-}
-```
-
-O broker só processa telemetria de sensores **previamente registrados** via TCP. Pacotes UDP de IDs desconhecidos — que podem vir de conexões antigas antes de uma reinicialização do broker — são ignorados silenciosamente.
+Sensores publicam leituras a cada 1 milissegundo via UDP. O protocolo foi escolhido por suas características: sem handshake, sem confirmação de entrega, sem controle de fluxo. Para telemetria de alta frequência, isso é vantagem — se um pacote for perdido, o próximo chega em 1 ms. Usar TCP para esse volume geraria overhead completamente desnecessário. O broker só processa telemetria de sensores **previamente registrados** via TCP, descartando pacotes de IDs desconhecidos.
 
 </section>
 
 <section id="tcp-dispositivos">
 <h3>Registro e Controle via TCP (porta 5001)</h3>
 
-A conexão TCP na porta 5001 tem três propósitos simultâneos durante toda a vida de um dispositivo conectado. Primeiro, é por ela que acontece o **handshake de registro** inicial — sem registro confirmado, nenhuma telemetria UDP do sensor é processada. Segundo, ela serve de canal para o **heartbeat bidirecional** (ping/pong a cada 30 segundos), que permite ao broker detectar conexões zumbi que não enviaram FIN TCP. Terceiro, e mais importante, ela é o canal pelo qual o broker faz **push ativo de estado** para os sensores — quando um atuador muda de estado, o broker não espera o próximo ping do sensor para notificá-lo, ele empurra a mudança imediatamente.
-
-A escolha de manter a conexão TCP persistente — em vez de conectar e desconectar a cada mensagem — foi intencional: reduz latência, elimina o overhead de handshake repetido, e permite que o broker saiba exatamente quais dispositivos estão ativos a qualquer momento.
+A conexão TCP na porta 5001 serve a três propósitos simultâneos durante toda a vida de um dispositivo: o **handshake de registro** inicial, o **heartbeat bidirecional** (ping/pong a cada 30 segundos para detectar conexões zumbi), e o canal pelo qual o broker faz **push ativo de estado** para os sensores sempre que um atuador muda. A conexão é mantida aberta permanentemente — não há reconexão a cada mensagem — o que reduz latência e permite ao broker saber exatamente quais dispositivos estão vivos a qualquer momento.
 
 </section>
 
 <section id="tcp-clientes">
-<h3>Assinatura e Comandos via TCP (porta 5002)</h3>
+<h3>Assinatura e Comandos (porta 5002)</h3>
 
-Clientes se conectam na porta 5002 e recebem automaticamente a lista de dispositivos ativos. A partir daí, podem assinar tópicos de sensores individuais (ex: `sensor/velocidade-a3f9c1`) ou por tipo (ex: `sensor/type/velocidade`). Tópicos assinados passam a receber telemetria em streaming contínuo enquanto a conexão durar.
+Clientes conectam na porta 5002 e recebem automaticamente a lista de dispositivos ativos. A partir daí, podem assinar tópicos de sensores individuais (ex: `sensor/velocidade-a3f9c1`) ou por tipo (ex: `sensor/type/velocidade`). O mesmo canal é usado para enviar comandos para atuadores, especificando o `target_id` (um atuador específico) ou `target_type` (todos de um tipo).
 
-O mesmo canal é usado para enviar comandos para atuadores. O cliente especifica o `target_id` (ID de um atuador específico) ou `target_type` (todos os atuadores de um tipo) junto com o payload do comando. O broker valida os alvos, atualiza o estado interno imediatamente (sem esperar confirmação do atuador), propaga para os sensores afetados, e repassa o comando ao(s) atuador(es).
+</section>
+
+<section id="perfis-trafego">
+<h3>Perfis de Tráfego e Mensagens Críticas</h3>
+
+O sistema distingue dois perfis de tráfego com estratégias diferentes de tratamento:
+
+| Característica | Telemetria (UDP) | Controle (TCP) |
+|---|---|---|
+| Frequência | ~1.000 msg/s por sensor | Esporádico |
+| Tolerância a perdas | Alta — próxima em 1 ms | Zero |
+| Garantia de ordem | Não necessária | Necessária |
+| Tratamento no broker | Descarta antigas, mantém só `last_value` | Processamento garantido |
+
+Mensagens de controle — comandos para atuadores, push de estado, confirmações de registro — são tratadas via TCP com entrega garantida. A telemetria UDP é agregada no broker: apenas o valor mais recente de cada sensor é mantido, evitando enfileiramento e crescimento indefinido de memória quando um cliente está lento.
 
 </section>
 </section>
@@ -198,24 +193,24 @@ O mesmo canal é usado para enviar comandos para atuadores. O cliente especifica
 ---
 
 <section id="protocolo">
-<h2>Protocolo de Comunicação (API Remota)</h2>
+<h2>Protocolo e Formato das Mensagens</h2>
 
 <section id="handshake">
 <h3>Handshake de Registro</h3>
 
-Todo dispositivo, ao conectar na porta 5001, deve enviar imediatamente uma mensagem de registro. O broker tem timeout de 10 segundos para receber esse registro — se não chegar, a conexão é encerrada. O campo `id` é opcional: se ausente, o broker gera um ID único com `uuid4` automaticamente e o inclui na resposta.
+Todo dispositivo ao conectar na porta 5001 deve enviar imediatamente uma mensagem de registro. O broker tem timeout de 10 segundos para recebê-la. O campo `id` é opcional — se ausente, o broker gera um ID único com `uuid4` e o inclui na resposta. Após o registro, o broker envia ao sensor o estado atual dos atuadores e o valor canônico do tipo, para que o sensor não comece divergente das demais instâncias já conectadas.
 
-**Sensor enviando registro:**
+**Sensor:**
 ```json
 { "register": "sensor", "type": "velocidade", "id": "velocidade-a3f9c1" }
 ```
 
-**Atuador enviando registro:**
+**Atuador:**
 ```json
 { "register": "atuador", "type": "limitador", "id": "limitador-b2e4f7" }
 ```
 
-**Broker respondendo para sensor (inclui estado atual e valor canônico):**
+**Broker → Sensor (resposta com estado inicial):**
 ```json
 {
   "registered": true,
@@ -225,14 +220,12 @@ Todo dispositivo, ao conectar na porta 5001, deve enviar imediatamente uma mensa
 }
 ```
 
-O campo `shared_value` na resposta inicial garante que um novo sensor não comece divergente dos demais — ele imediatamente adota o valor canônico calculado pela mediana dos sensores já conectados, e a partir daí converge gradualmente.
-
 </section>
 
 <section id="push-estado">
-<h3>Push de Estado — Broker para Sensores</h3>
+<h3>Push de Estado — Broker → Sensores</h3>
 
-Sempre que o estado de um atuador muda, o broker identifica quais tipos de sensor são afetados e empurra o novo estado via TCP para todos eles, sem esperar qualquer solicitação:
+Sempre que o estado de um atuador muda, o broker empurra o novo estado imediatamente para todos os sensores do tipo afetado, sem esperar qualquer solicitação. O mapeamento de dependência é fixo: `limitador` afeta sensores de `velocidade`; `resfriamento` afeta sensores de `temperatura`.
 
 ```json
 {
@@ -241,72 +234,44 @@ Sempre que o estado de um atuador muda, o broker identifica quais tipos de senso
 }
 ```
 
-O mapeamento de dependência entre atuadores e sensores é fixo no broker:
-- `limitador` → afeta sensores do tipo `velocidade`
-- `resfriamento` → afeta sensores do tipo `temperatura`
-
-Sensores de combustível e óleo não recebem push de estado de atuadores porque nenhum atuador atual os influencia diretamente — eles dependem apenas de seus próprios valores simulados internamente.
+O campo `shared_value` carrega a mediana canônica do tipo naquele momento, permitindo que o sensor corrija sua convergência junto com o estado do atuador numa única mensagem.
 
 </section>
 
-<section id="mensagens">
-<h3>Catálogo Completo de Mensagens</h3>
+<section id="catalogo">
+<h3>Catálogo de Mensagens</h3>
 
-| Direção | Contexto | Mensagem | Campos Obrigatórios |
-|---|---|---|---|
-| Sensor → Broker | TCP 5001 | Registro | `register`, `type`, `id` |
-| Atuador → Broker | TCP 5001 | Registro | `register`, `type`, `id` |
-| Broker → Dispositivo | TCP 5001 | Confirmação | `registered`, `id`, `state?`, `shared_value?` |
-| Sensor → Broker | UDP 5000 | Telemetria | `id`, `type`, `data`, `ts` |
-| Broker → Sensor | TCP 5001 | Push de estado | `state`, `shared_value?` |
-| Broker → Dispositivo | TCP 5001 | Keepalive | `ping` (texto puro) |
-| Dispositivo → Broker | TCP 5001 | Resposta keepalive | `ping` (texto puro — ecoa) |
-| Atuador → Broker | TCP 5001 | Atualização de estado | `status: {active, limit?}` |
-| Cliente → Broker | TCP 5002 | Assinatura | `subscribe: [tópicos]` |
-| Broker → Cliente | TCP 5002 | Telemetria | `id`, `type`, `data`, `ts` |
-| Broker → Cliente | TCP 5002 | Lista de dispositivos | `event: device_list`, `sensors[]`, `actuators[]` |
-| Broker → Cliente | TCP 5002 | Desconexão de atuador | `event: actuator_disconnected`, `id`, `type`, `actuator_state` |
-| Cliente → Broker | TCP 5002 | Comando | `command: {target_id\|target_type, data}` |
-| Broker → Atuador | TCP 5001 | Comando repassado | `command: {active, limit?}` |
+| Direção | Mensagem | Campos |
+|---|---|---|
+| Sensor → Broker (TCP 5001) | Registro | `register`, `type`, `id` |
+| Atuador → Broker (TCP 5001) | Registro | `register`, `type`, `id` |
+| Broker → Dispositivo (TCP 5001) | Confirmação | `registered`, `id`, `state?`, `shared_value?` |
+| Sensor → Broker (UDP 5000) | Telemetria | `id`, `type`, `data`, `ts` |
+| Broker → Sensor (TCP 5001) | Push de estado | `state`, `shared_value?` |
+| Dispositivo ↔ Broker (TCP 5001) | Keepalive | `ping` (texto puro) |
+| Atuador → Broker (TCP 5001) | Notificação de estado | `status: {active, limit?}` |
+| Cliente → Broker (TCP 5002) | Assinatura | `subscribe: [tópicos]` |
+| Broker → Cliente (TCP 5002) | Telemetria | `id`, `type`, `data`, `ts` |
+| Broker → Cliente (TCP 5002) | Lista de dispositivos | `event: device_list`, `sensors[]`, `actuators[]` |
+| Broker → Cliente (TCP 5002) | Desconexão de atuador | `event: actuator_disconnected`, `id`, `type`, `actuator_state` |
+| Cliente → Broker (TCP 5002) | Comando | `command: {target_id\|target_type, data}` |
+| Broker → Atuador (TCP 5001) | Comando repassado | `command: {active, limit?}` |
 
-**Exemplo completo — ativando o limitador via cliente:**
+**Exemplo completo — fluxo de ativação do limitador:**
 
-O cliente envia ao broker:
-```json
-{
-  "command": {
-    "target_id": "limitador-b2e4f7",
-    "data": { "active": true, "limit": 120 }
-  }
-}
 ```
-
-O broker repassa ao atuador:
-```json
-{ "command": { "active": true, "limit": 120 } }
-```
-
-O atuador confirma ao broker:
-```json
-{ "status": { "active": true, "limit": 120.0 } }
-```
-
-O broker empurra para os sensores de velocidade:
-```json
-{ "state": { "limitador_ativo": true, "limit_speed": 120.0 }, "shared_value": 87.4 }
+Cliente  ──►  Broker:   {"command": {"target_id": "limitador-b2e4f7", "data": {"active": true, "limit": 120}}}
+Broker   ──►  Atuador:  {"command": {"active": true, "limit": 120}}
+Atuador  ──►  Broker:   {"status": {"active": true, "limit": 120.0}}
+Broker   ──►  Sensores: {"state": {"limitador_ativo": true, "limit_speed": 120.0}, "shared_value": 87.4}
 ```
 
 </section>
-</section>
-
----
 
 <section id="encapsulamento">
-<h2>Encapsulamento e Formato dos Dados</h2>
+<h3>Encapsulamento e Parsing</h3>
 
-Todas as mensagens trocadas via TCP usam **JSON delimitado por newline** (`\n`). Cada mensagem é uma única linha JSON terminada por `\n`, o que permite parsing incremental com um buffer simples e sem precisar conhecer o tamanho da mensagem antecipadamente. Esse padrão — conhecido como NDJSON (Newline-Delimited JSON) — é amplamente adotado em protocolos de streaming por ser ao mesmo tempo simples, legível por humanos e eficiente para máquinas.
-
-O parsing em todos os componentes segue o mesmo padrão de buffer acumulativo:
+Todas as mensagens TCP usam **JSON delimitado por newline** (`\n`) — cada mensagem é uma linha JSON terminada por `\n`. Esse padrão (NDJSON) permite parsing incremental com buffer simples, sem precisar conhecer o tamanho da mensagem de antemão, e lida corretamente com fragmentação TCP (mensagem chegando em múltiplos pacotes) e coalescing (múltiplas mensagens no mesmo pacote):
 
 ```python
 buffer = b""
@@ -316,51 +281,47 @@ while True:
     while b"\n" in buffer:
         line, buffer = buffer.split(b"\n", 1)
         msg = json.loads(line.strip().decode())
-        # processa msg...
 ```
 
-Essa abordagem lida corretamente com dois fenômenos comuns em TCP: **fragmentação** (quando uma mensagem chega em múltiplos pacotes) e **coalescing** (quando múltiplas mensagens chegam no mesmo pacote). Sem o buffer acumulativo, qualquer um desses casos causaria erros de parsing.
+Todo parsing JSON é encapsulado em `try/except json.JSONDecodeError`. Mensagens malformadas são silenciosamente descartadas sem encerrar a conexão. Campos ausentes são sempre acessados com `.get()` e valores padrão explícitos, nunca com acesso direto por chave. A telemetria UDP segue o mesmo formato JSON, mas sem delimitador — cada datagrama é exatamente uma mensagem completa. O campo `ts` (timestamp Unix de geração) é usado pelo cliente para calcular e exibir a latência de entrega em milissegundos.
 
-**Validação e tolerância a erros:** todo parsing JSON é encapsulado em `try/except json.JSONDecodeError`. Mensagens malformadas são silenciosamente descartadas sem encerrar a conexão — um byte corrompido ou uma mensagem truncada não derruba o sistema. Campos ausentes são sempre acessados com `.get()` e valores padrão explícitos, nunca com acesso direto por chave.
-
-**Telemetria UDP** segue o mesmo formato JSON, mas sem delimitador — cada datagrama é exatamente uma mensagem completa. O campo `ts` carrega o timestamp Unix de geração do dado no sensor, e o cliente usa esse campo para calcular e exibir a **latência de entrega** em milissegundos em tempo real durante o monitoramento.
-
+</section>
 </section>
 
 ---
 
 <section id="concorrencia">
-<h2>Concorrência e Qualidade de Serviço</h2>
+<h2>Concorrência e Sincronização</h2>
 
 <section id="threading">
-<h3>Threading no Broker</h3>
-
-O broker opera com um modelo de threading que combina threads de longa duração para os servidores principais com threads efêmeras por conexão para cada dispositivo e cliente.
+<h3>Modelo de Threading</h3>
 
 <div align="center">
-  <img src="docs/threading.png" alt="[SUGESTÃO DE IMAGEM] Diagrama mostrando o processo principal do broker no topo, com 4 setas descendo para as threads permanentes (handle_udp, handle_tcp_devices, handle_tcp_clients, status_reporter). De handle_tcp_devices saem N setas menores para threads de conexão individuais (sensor-001, sensor-002, atuador-001). De handle_tcp_clients saem M setas para threads de clientes (cliente-001, cliente-002). Use caixas coloridas por categoria">
+  <img src="docs/threading.png" alt="[SUGESTÃO DE IMAGEM] Diagrama mostrando o processo principal do broker no topo, com 4 setas descendo para as threads permanentes (handle_udp, handle_tcp_devices, handle_tcp_clients, status_reporter). De handle_tcp_devices saem N setas menores para threads de conexão individuais de cada sensor e atuador. De handle_tcp_clients saem M setas para threads de clientes. Use caixas coloridas por categoria">
   <br>
   <strong>Modelo de threading do broker — threads daemon por conexão</strong>
   <br><br>
 </div>
 
-As quatro threads de longa duração inicializadas na startup do broker são:
+O broker opera com quatro threads de longa duração inicializadas na startup, mais uma thread efêmera para cada dispositivo ou cliente que conecta:
 
-| Thread | Função |
+| Thread permanente | Função |
 |---|---|
-| `handle_udp` | Loop bloqueante de recepção de telemetria UDP na porta 5000 |
+| `handle_udp` | Loop bloqueante de recepção UDP na porta 5000 |
 | `handle_tcp_devices` | Loop de `accept()` de sensores e atuadores na porta 5001 |
 | `handle_tcp_clients` | Loop de `accept()` de clientes na porta 5002 |
-| `status_reporter` | Log periódico do estado completo do sistema a cada 15 segundos |
+| `status_reporter` | Log periódico do estado completo a cada 15 segundos |
 
-Cada `accept()` bem-sucedido gera uma nova thread daemon independente que gerencia o ciclo de vida completo daquela conexão — do handshake inicial até a limpeza no `finally` da desconexão. O uso de `daemon=True` em todas as threads garante que nenhuma thread filha impeça o encerramento do processo principal quando o operador pressionar `Ctrl+C`.
+Cada `accept()` bem-sucedido gera uma thread daemon independente que gerencia o ciclo de vida completo daquela conexão — do handshake inicial até a limpeza garantida no bloco `finally` da desconexão. O uso de `daemon=True` garante que nenhuma thread filha impeça o encerramento do processo principal.
+
+Os sensores também usam threading interno: a thread `keepalive_loop` mantém a conexão TCP e processa mensagens de push, enquanto `publish_loop` envia telemetria UDP de forma independente. Isso garante que a latência de rede no canal TCP nunca bloqueie a publicação de dados.
 
 </section>
 
 <section id="locks">
 <h3>Locks e Seções Críticas</h3>
 
-O broker usa cinco locks distintos, cada um protegendo um conjunto específico de dados compartilhados. A granularidade dos locks é intencional — um único lock global seria mais simples, mas causaria contenção desnecessária entre threads que operam em dados não relacionados.
+O broker usa cinco locks distintos com granularidade intencional — um único lock global causaria contenção desnecessária entre threads operando em dados não relacionados:
 
 ```
 devices_lock        → sensors{},  actuators{}
@@ -370,59 +331,42 @@ subscribers_lock    → subscribers{}
 last_values_lock    → last_values{}
 ```
 
-Um cuidado especial foi necessário para evitar **deadlock**: `threading.Lock` em Python não é reentrante, então uma função que já está dentro de `with devices_lock` não pode chamar outra função que tente adquirir o mesmo lock. A solução adotada é passar os dados necessários como parâmetro quando já se está dentro do lock, movendo a operação para fora:
+Um cuidado especial foi necessário para evitar **deadlock**: `threading.Lock` em Python não é reentrante. Funções que já estão dentro de um bloco `with devices_lock` não podem chamar outras funções que tentem adquirir o mesmo lock. A solução adotada é calcular os dados necessários dentro do lock e passá-los como parâmetro para fora:
 
 ```python
-# Correto: calcula registered_ids dentro do lock, passa para fora
+# Correto: calcula registered_ids dentro do lock e opera fora
 with devices_lock:
     remaining_ids = {sid for sid, e in sensors.items() if e["type"] == dtype}
 recalc_shared_value(dtype, registered_ids=remaining_ids)  # fora do lock
 
-# Incorreto: recalc_shared_value tentaria adquirir devices_lock novamente
+# Incorreto: deadlock — recalc_shared_value tentaria adquirir devices_lock novamente
 with devices_lock:
-    recalc_shared_value(dtype)  # deadlock
+    recalc_shared_value(dtype)
 ```
+
+As requisições simultâneas de múltiplos sensores publicando a 1 ms são gerenciadas por esse modelo: cada thread de sensor acessa `shared_values_lock` brevemente para atualizar seu valor, e o recálculo da mediana é feito também dentro desse lock, de forma atômica.
 
 </section>
 
 <section id="mediana">
-<h3>Mediana Canônica e Convergência entre Sensores</h3>
+<h3>Mediana Canônica</h3>
 
-Quando múltiplas instâncias do mesmo tipo de sensor estão conectadas simultaneamente, o broker precisa de um único valor de referência para sincronizá-las. Esse valor — o **valor canônico** — é calculado como a mediana dos valores mais recentes recebidos de cada instância:
+Quando múltiplas instâncias do mesmo tipo de sensor estão conectadas, o broker calcula a **mediana** dos valores recebidos como valor canônico de referência:
 
 ```python
 vals = [shared_values_per_sensor[sid] for sid in registered_ids]
 shared_values[stype] = sorted(vals)[len(vals) // 2]
 ```
 
-A **mediana** foi escolhida em vez da média por ser resistente a outliers. Se três sensores de velocidade estão conectados com valores 100, 150 e 0 km/h (o último com algum estado anômalo), a mediana é 100 — enquanto a média seria 83,3 km/h, distorcida pelo valor extremo.
-
-Esse valor canônico é empurrado para todos os sensores do tipo a cada resposta de ping e a cada mudança de estado de atuador. Os sensores aplicam convergência gradual com um fator de interpolação linear:
+A mediana foi escolhida em vez da média por ser resistente a outliers — se um sensor com estado anômalo enviar 0 km/h enquanto os outros marcam ~150 km/h, a mediana não é distorcida. Esse valor é empurrado para todos os sensores do tipo a cada resposta de ping e a cada mudança de estado de atuador. Os sensores aplicam convergência gradual ao receber o valor canônico:
 
 ```python
-# Convergência forte (0.8) — velocidade e temperatura, push frequente do broker
+# Velocidade e temperatura: convergência forte (broker empurra com frequência)
 state["velocidade"] += (float(sv) - state["velocidade"]) * 0.8
 
-# Convergência suave (0.5) — combustível e óleo, mudanças mais lentas
+# Combustível e óleo: convergência suave (mudanças mais lentas)
 state["combustivel"] += (float(sv) - state["combustivel"]) * 0.5
 ```
-
-</section>
-
-<section id="qos">
-<h3>Separação de Perfis de Tráfego</h3>
-
-O sistema distingue claramente dois perfis de tráfego com características e requisitos opostos, tratados com estratégias diferentes:
-
-| Característica | Telemetria (UDP) | Controle (TCP) |
-|---|---|---|
-| Frequência | ~1.000 msg/s por sensor | Esporádico |
-| Volume por mensagem | ~100 bytes | ~50–300 bytes |
-| Tolerância a perdas | Alta — próxima em 1ms | Zero |
-| Garantia de ordem | Não necessária | Necessária |
-| Protocolo | UDP | TCP |
-
-O broker **não enfileira telemetria** para os clientes — ele mantém apenas o `last_value` de cada tópico e faz broadcast do valor mais recente. Isso evita que um cliente lento ou com conexão mais lenta acumule uma fila crescente de mensagens antigas e cause aumento de uso de memória indefinido no broker.
 
 </section>
 </section>
@@ -430,30 +374,20 @@ O broker **não enfileira telemetria** para os clientes — ele mantém apenas o
 ---
 
 <section id="interacao">
-<h2>Interação — Cliente Terminal</h2>
+<h2>Interação via Cliente Terminal</h2>
 
-O `cliente.py` implementa uma interface de terminal interativa completa, sem dependências externas. O cliente opera em duas fases alternadas: menus de seleção em modo normal de terminal, e monitoramento ao vivo em modo de tela cheia com atualização contínua via ANSI escape codes.
+O `cliente.py` foi construído para permitir a **seleção remota de dispositivos**, a **visualização de dados em tempo real** e o **envio de comandos** a partir de um único terminal interativo, sem dependências externas.
 
 <div align="center">
-  <img src="docs/cliente_monitoramento.gif" alt="[SUGESTÃO DE IMAGEM] GIF gravado com asciinema (instale com: pip install asciinema; grave com: asciinema rec demo.cast; converta com: svg-term --in demo.cast --out demo.svg) mostrando a sequência: 1) menu principal com lista de sensores e atuadores, 2) seleção de dois sensores para monitorar, 3) tela de monitoramento ao vivo com gráficos ASCII subindo e descendo por 10 segundos, 4) pressionar q para voltar ao menu">
+  <img src="docs/cliente_monitoramento.gif" alt="[SUGESTÃO DE IMAGEM] GIF gravado com asciinema (instale: pip install asciinema; grave: asciinema rec demo.cast; converta: svg-term --in demo.cast --out demo.svg ou use asciinema-gif) mostrando a sequência: 1) menu principal listando sensores e atuadores, 2) seleção de dois sensores, 3) tela de monitoramento com gráficos ASCII atualizando ao vivo por ~10 segundos, 4) pressionar q para voltar">
   <br>
-  <strong>Monitoramento ao vivo com gráfico ASCII de série temporal</strong>
+  <strong>Monitoramento ao vivo com gráfico ASCII de série temporal e indicação de alerta</strong>
   <br><br>
 </div>
 
-### Menu Principal
+Ao conectar, o cliente recebe automaticamente do broker a lista completa de sensores e atuadores ativos. Nomes amigáveis como "Velocidade 1" e "Velocidade 2" são atribuídos dinamicamente — sem cache estático, sempre refletindo o estado real do broker. O operador seleciona quais sensores deseja monitorar e o cliente entra em modo de tela cheia com atualização a **10 Hz**.
 
-O menu principal é reconstruído a cada interação com a lista atual de dispositivos viva, recebida do broker. Nomes amigáveis como "Velocidade 1" e "Velocidade 2" são atribuídos dinamicamente com base na posição de cada dispositivo na lista — sem cache estático, sempre refletindo o estado real do broker no momento da exibição.
-
-### Monitoramento ao Vivo
-
-O modo de monitoramento ao vivo atualiza a tela a **10 Hz** (a cada 100ms), agregando as leituras que chegam a 1ms dos sensores. Para cada sensor monitorado são exibidos:
-
-- **Valor atual** com unidade, colorido por nível de alerta (verde / amarelo / vermelho)
-- **Barra de progresso** proporcional ao valor máximo do tipo
-- **Indicador de alerta** com fundo vermelho quando o valor cruza o limiar crítico
-- **Latência de entrega** em milissegundos — diferença entre o `ts` do sensor e o instante de recebimento
-- **Gráfico ASCII de série temporal** com os últimos 60 valores, usando blocos Unicode de 8 níveis verticais de resolução
+Para cada sensor monitorado são exibidos: o valor atual com unidade colorido por nível de alerta (verde / amarelo / vermelho), uma barra de progresso proporcional ao máximo do tipo, um indicador de alerta em destaque quando o valor cruza o limiar crítico, a latência de entrega em milissegundos, e um gráfico de série temporal em ASCII com os últimos 60 valores usando blocos Unicode de 8 níveis de resolução vertical.
 
 ```
   Velocidade 1  (velocidade)
@@ -467,18 +401,14 @@ O modo de monitoramento ao vivo atualiza a tela a **10 Hz** (a cada 100ms), agre
     128.4 °C    ████████████████████░░  lag: 8ms
 ```
 
-Sensores que se desconectam durante o monitoramento são imediatamente identificados com `⚠ ERRO NO SENSOR` em vermelho — o cliente detecta a ausência do ID na `device_list` atualizada que recebe do broker automaticamente.
+Sensores que se desconectam durante o monitoramento são imediatamente identificados com `⚠ ERRO NO SENSOR` — o cliente detecta a ausência do ID na `device_list` atualizada que o broker envia automaticamente. A interface também permite enviar comandos para atuadores: ativar o limitador de velocidade com um valor em km/h, ou ligar/desligar o resfriamento, selecionando um atuador específico ou todos os do tipo simultaneamente.
 
 <div align="center">
-  <img src="docs/cliente_comando.png" alt="[SUGESTÃO DE IMAGEM] Print do terminal mostrando a tela de comando do limitador de velocidade: lista os atuadores conectados com números de seleção, mostra o prompt pedindo a velocidade máxima em km/h, e abaixo a mensagem 'Limitador 1: ✔ enviado' em verde">
+  <img src="docs/cliente_comando.png" alt="[SUGESTÃO DE IMAGEM] Print do terminal mostrando a tela de comando do limitador de velocidade: lista os atuadores conectados numerados, prompt pedindo a velocidade máxima em km/h, e confirmação '✔ enviado' em verde logo abaixo">
   <br>
   <strong>Envio de comando de limitador de velocidade via cliente terminal</strong>
   <br><br>
 </div>
-
-### Envio de Comandos
-
-O cliente permite controlar atuadores individualmente ou em grupo. Para o limitador de velocidade, o usuário informa a velocidade máxima em km/h e pode selecionar um atuador específico ou todos os do tipo simultaneamente. Para o resfriamento, escolhe entre ativar ou desativar. A confirmação de envio é imediata — o cliente não espera o efeito nos sensores, apenas confirma que o comando chegou ao broker.
 
 </section>
 
@@ -487,27 +417,17 @@ O cliente permite controlar atuadores individualmente ou em grupo. Para o limita
 <section id="confiabilidade">
 <h2>Confiabilidade e Tratamento de Falhas</h2>
 
-O sistema foi projetado para se manter estável diante de qualquer falha parcial. Nenhuma falha de um componente individual derruba o sistema como um todo, e qualquer componente pode reconectar sem intervenção manual.
+O sistema foi projetado para se manter estável diante de qualquer falha parcial. Nenhuma falha de um componente individual derruba o sistema como um todo.
 
-### Desconexão de Sensor
+**Desconexão de sensor:** o broker remove o sensor de `sensors{}`, recalcula a mediana sem ele e envia `device_list` atualizada para todos os clientes. O cliente exibe `⚠ ERRO NO SENSOR` imediatamente. Se o sensor reconectar, retoma operação normal adotando o valor canônico atual do broker.
 
-Quando um sensor perde conexão — por queda de rede, encerramento do processo, ou timeout de keepalive —, o broker executa uma sequência de limpeza no bloco `finally` do handler da conexão. O sensor é removido de `sensors{}`, seu valor individual é removido de `shared_values_per_sensor{}`, o valor canônico do tipo é recalculado sem ele, e todos os clientes recebem a `device_list` atualizada. O cliente exibe `⚠ ERRO NO SENSOR` imediatamente ao detectar que o ID sumiu da lista.
+**Desconexão de atuador ativo:** este é o caso mais crítico. Se o único limitador ativo desconectar inesperadamente, os sensores de velocidade ficariam limitados indefinidamente sem receber notificação. O broker trata isso no bloco `finally` da conexão: ao detectar a desconexão, recalcula o estado agregado **sem aquele atuador** e empurra imediatamente o novo estado para os sensores afetados. Todos os clientes recebem adicionalmente um evento `actuator_disconnected` com o novo estado global.
 
-### Desconexão de Atuador
+**Reconexão automática:** todos os componentes implementam reconexão automática com retry a cada 3 segundos, detectando desconexão quando `recv()` retorna vazio ou `send()` lança `OSError`. O estado local é preservado entre reconexões.
 
-A desconexão de um atuador tem implicações mais abrangentes e foi um ponto crítico de cuidado no projeto. Se o único limitador ativo desconectar inesperadamente, os sensores de velocidade continuariam limitados para sempre sem nenhum push notificando a mudança. O broker trata isso explicitamente: ao detectar a desconexão de um atuador, ele recalcula o estado agregado **sem aquele atuador** e empurra o novo estado para os sensores afetados. No caso do exemplo, os sensores receberiam `{"limitador_ativo": false, "limit_speed": 320.0}` e voltariam a funcionar livremente. Todos os clientes recebem adicionalmente um evento `actuator_disconnected` com o novo estado dos atuadores.
+**Timeout e keepalive:** dispositivos e clientes usam timeout de 35 segundos no `recv()` TCP. Ao disparar, o componente envia `ping\n` — se a resposta não chegar ou o envio falhar, a conexão é encerrada e o processo reconecta. O broker usa timeout de 30 segundos e envia `ping\n` ativamente ao detectar inatividade.
 
-### Reconexão Automática
-
-Todos os componentes implementam reconexão automática com retry a cada 3 segundos. Sensores e atuadores detectam a desconexão quando o `recv()` retorna vazio ou quando o `send()` lança `OSError`, encerram a thread filha via `threading.Event`, e o loop principal da `main()` reinicia a conexão. O estado local é preservado entre reconexões — um sensor em 120°C não volta a 90°C só porque reconectou.
-
-### Timeout e Keepalive
-
-Dispositivos e clientes usam timeout de 35 segundos no `recv()` TCP. Em operação normal isso nunca dispara, pois a telemetria UDP flui constantemente e o broker envia pings a cada 30 segundos. Se o timeout disparar, o componente envia `ping\n` — se a resposta não chegar ou o envio falhar, a conexão é encerrada e o processo reconecta.
-
-### Comando para Atuador Desconectado
-
-Se o cliente tentar enviar um comando para um atuador cujo ID não existe mais em `actuators{}`, o broker loga um aviso e descarta o comando silenciosamente. O cliente não recebe confirmação de erro — mas já terá recebido a `device_list` atualizada e não deveria mais listar aquele atuador como disponível na interface.
+**Comando para atuador desconectado:** se o cliente tentar enviar um comando para um ID que não existe mais em `actuators{}`, o broker loga um aviso e descarta o comando. O cliente já terá recebido a `device_list` atualizada e não deveria mais listar aquele atuador.
 
 </section>
 
@@ -516,57 +436,45 @@ Se o cliente tentar enviar um comando para um atuador cujo ID não existe mais e
 <section id="testes">
 <h2>Testes</h2>
 
-Os testes foram conduzidos manualmente em ambiente Docker, simulando cenários reais de operação distribuída. Cada cenário foi desenhado para cobrir um aspecto específico do barema do projeto — desde a verificação básica de comunicação até situações de falha e recuperação. Os passos são reproduzíveis por qualquer pessoa com Python 3 e os arquivos do projeto.
+Os testes foram conduzidos manualmente em ambiente local e com Docker, cobrindo os cenários principais de operação, falha e recuperação do sistema. Todos são reproduzíveis abrindo múltiplos terminais com os arquivos do projeto.
 
 <div align="center">
-  <img src="docs/testes_overview.png" alt="[SUGESTÃO DE IMAGEM] Print de tela dividida com tmux (4 painéis): painel superior esquerdo com o broker logando registros, painel superior direito com dois sensores de velocidade imprimindo seus valores, painel inferior esquerdo com o atuador limitador aguardando comandos, painel inferior direito com o cliente no monitoramento ao vivo">
+  <img src="docs/testes_overview.png" alt="[SUGESTÃO DE IMAGEM] Print de tela dividida com tmux (4 painéis, crie com: tmux new-session, depois Ctrl+b % para dividir verticalmente e Ctrl+b ' para dividir horizontalmente): painel superior esquerdo com broker logando, superior direito com dois sensores de velocidade, inferior esquerdo com atuador, inferior direito com cliente no monitoramento ao vivo">
   <br>
-  <strong>Ambiente de teste com múltiplos componentes em terminais simultâneos</strong>
+  <strong>Ambiente de testes com múltiplos componentes em terminais simultâneos</strong>
   <br><br>
 </div>
 
-### Teste 1 — Conexão simultânea de múltiplos sensores do mesmo tipo
+### Teste 1 — Múltiplos sensores do mesmo tipo conectados simultaneamente
 
 **Objetivo:** verificar que o broker mantém instâncias separadas, calcula a mediana corretamente e exibe ambos no cliente com nomes amigáveis distintos.
 
-**Como executar:**
 ```bash
-# Terminal 1
 python broker.py
-
-# Terminal 2
-SENSOR_ID=velocidade-001 python sensor_velocidade.py
-
-# Terminal 3
-SENSOR_ID=velocidade-002 python sensor_velocidade.py
-
-# Terminal 4
-python cliente.py
-# No cliente: selecionar ambos os sensores de velocidade para monitoramento
+SENSOR_ID=velocidade-001 python sensor_velocidade.py  # terminal 2
+SENSOR_ID=velocidade-002 python sensor_velocidade.py  # terminal 3
+python cliente.py  # selecionar ambos os sensores para monitoramento
 ```
 
-**Resultado esperado:** o cliente lista "Velocidade 1" e "Velocidade 2" com gráficos independentes. O log do broker (status_reporter a cada 15s) mostra dois sensores do tipo `velocidade` registrados. Ao longo do tempo, os valores dos dois sensores convergem gradualmente — evidência de que o push da mediana canônica está funcionando.
+**Resultado esperado:** o cliente lista "Velocidade 1" e "Velocidade 2" com gráficos independentes. O `status_reporter` do broker (log a cada 15s) mostra dois sensores do tipo `velocidade`. Ao longo do tempo, os valores dos dois sensores convergem gradualmente — evidência do push da mediana canônica funcionando.
 
 ---
 
 ### Teste 2 — Ativação e desativação do limitador de velocidade
 
-**Objetivo:** verificar o fluxo completo de comando (cliente → broker → atuador → broker → sensores) e o efeito observável no comportamento do sensor.
+**Objetivo:** verificar o fluxo completo de comando (cliente → broker → atuador → broker → sensores) e o efeito observável no sensor.
 
-**Como executar:**
 ```bash
 python broker.py
-python sensor_velocidade.py   # terminal separado
-python atuador_limitador.py   # terminal separado
-python cliente.py             # terminal separado
-# No cliente: monitorar o sensor de velocidade ao vivo
-# Em outro menu do cliente: ativar limitador com 120 km/h
+python sensor_velocidade.py   # terminal 2 — observe os logs
+python atuador_limitador.py   # terminal 3
+python cliente.py             # monitorar velocidade ao vivo; ativar limitador em 120 km/h
 ```
 
-**Resultado esperado:** no terminal do sensor de velocidade, a mensagem `LIMITADOR ATIVADO ≤120 km/h` aparece em amarelo em até 1 segundo após o comando. O gráfico de velocidade no cliente passa a flutuar abaixo de 120 km/h, sem picos acima. Ao desativar, `Limitador DESATIVADO — livre` aparece no sensor e os valores voltam a atingir picos maiores.
+**Resultado esperado:** no terminal do sensor, a mensagem `LIMITADOR ATIVADO ≤120 km/h` aparece em amarelo em até 1 segundo após o comando. O gráfico de velocidade no cliente passa a flutuar abaixo de 120 km/h. Ao desativar, `Limitador DESATIVADO — livre` aparece no sensor e os picos voltam.
 
 <div align="center">
-  <img src="docs/teste_limitador.png" alt="[SUGESTÃO DE IMAGEM] Print do terminal do sensor de velocidade mostrando a mensagem amarela 'LIMITADOR ATIVADO ≤120 km/h' logo após o comando ser enviado pelo cliente, com os valores subsequentes todos abaixo de 120">
+  <img src="docs/teste_limitador.png" alt="[SUGESTÃO DE IMAGEM] Print do terminal do sensor de velocidade mostrando a mensagem amarela 'LIMITADOR ATIVADO ≤120 km/h' logo após o envio do comando pelo cliente, com os valores impressos logo abaixo todos abaixo de 120">
   <br>
   <strong>Sensor de velocidade recebendo push do limitador em tempo real</strong>
   <br><br>
@@ -576,18 +484,15 @@ python cliente.py             # terminal separado
 
 ### Teste 3 — Queda e reconexão do broker
 
-**Objetivo:** verificar que todos os componentes detectam a queda do broker e reconectam automaticamente sem intervenção manual.
+**Objetivo:** verificar que todos os componentes detectam a queda e reconectam automaticamente sem intervenção.
 
-**Como executar:**
 ```bash
-# Suba todos os componentes normalmente, depois:
-# No terminal do broker, pressione Ctrl+C
-# Aguarde 5 segundos observando os outros terminais
-# Reinicie o broker: python broker.py
-# Aguarde mais 5 segundos
+# Com todos os componentes rodando:
+# Pressione Ctrl+C no terminal do broker — aguarde 5s observando os outros terminais
+# Reinicie: python broker.py — aguarde mais 5s
 ```
 
-**Resultado esperado:** sensores e atuadores imprimem `Broker indisponível. Tentando em 3s...` e tentam reconectar a cada 3 segundos. O cliente exibe `⚠ Broker desconectado. Aguardando reinicialização...`. Ao reiniciar o broker, todos os componentes reconectam automaticamente e retomam operação normal — os sensores voltam a publicar, o cliente volta a receber telemetria.
+**Resultado esperado:** sensores e atuadores imprimem `Broker indisponível. Tentando em 3s...` e tentam reconectar a cada 3 segundos. O cliente exibe `⚠ Broker desconectado. Aguardando reinicialização...`. Ao reiniciar o broker, todos os componentes reconectam automaticamente e retomam operação normal.
 
 ---
 
@@ -595,19 +500,15 @@ python cliente.py             # terminal separado
 
 **Objetivo:** verificar que a desconexão de um atuador ativo não deixa os sensores em estado restrito permanentemente.
 
-**Como executar:**
 ```bash
-python broker.py
-python sensor_velocidade.py
-python atuador_limitador.py
-python cliente.py
+# Com broker, sensor de velocidade, atuador limitador e cliente rodando:
 # Via cliente: ativar limitador em 80 km/h
-# Confirmar que o sensor está limitado (mensagem no terminal)
-# Encerrar apenas o atuador: Ctrl+C no terminal do atuador
-# Observar o terminal do sensor de velocidade
+# Confirmar que o sensor está limitado (mensagem no terminal do sensor)
+# Ctrl+C apenas no terminal do atuador
+# Observar o terminal do sensor de velocidade e o cliente
 ```
 
-**Resultado esperado:** ao encerrar o atuador, o sensor de velocidade recebe push do broker com `limitador_ativo: false` e imprime `Limitador DESATIVADO — livre`. O cliente recebe evento `actuator_disconnected` e remove o atuador da lista de dispositivos. Os valores de velocidade voltam a ultrapassar 80 km/h.
+**Resultado esperado:** ao encerrar o atuador, o sensor recebe push do broker com `limitador_ativo: false` e imprime `Limitador DESATIVADO — livre`. O cliente remove o atuador da lista. Os valores de velocidade voltam a ultrapassar 80 km/h.
 
 ---
 
@@ -615,27 +516,25 @@ python cliente.py
 
 **Objetivo:** verificar que o sistema funciona em rede real com componentes em máquinas físicas distintas.
 
-**Como executar:**
-
-Na Máquina A (hospeda o broker):
+**Máquina A (broker):**
 ```bash
 docker build -t broker -f Dockerfile.broker .
 docker run -p 5000:5000/udp -p 5001:5001 -p 5002:5002 broker
-# Descubra o IP: hostname -I
+hostname -I  # anote o IP
 ```
 
-Na Máquina B (sensores e cliente apontando para Máquina A):
+**Máquina B (sensor e cliente):**
 ```bash
 docker run -e BROKER_HOST=<IP_MAQUINA_A> -e SENSOR_ID=velocidade-ext sensor_velocidade
 BROKER_HOST=<IP_MAQUINA_A> python cliente.py
 ```
 
-**Resultado esperado:** o sensor da Máquina B conecta no broker da Máquina A. O cliente vê o sensor na lista com o ID `velocidade-ext` e recebe telemetria normalmente. O comportamento é idêntico ao de execução local, confirmando que não há dependência de localhost.
+**Resultado esperado:** o sensor da Máquina B conecta no broker da Máquina A. O cliente vê o sensor na lista com o ID `velocidade-ext` e recebe telemetria normalmente. O comportamento é idêntico ao de execução local.
 
 <div align="center">
-  <img src="docs/teste_docker.png" alt="[SUGESTÃO DE IMAGEM] Print do comando 'docker ps' mostrando os contêineres em execução: ao menos broker, sensor_velocidade (duas instâncias com nomes diferentes), sensor_temperatura, atuador_limitador, atuador_resfriamento — evidencia múltiplos processos independentes rodando simultaneamente">
+  <img src="docs/teste_docker.png" alt="[SUGESTÃO DE IMAGEM] Print do comando 'docker ps' mostrando os contêineres em execução: broker, sensor_velocidade (duas instâncias), sensor_temperatura, atuador_limitador, atuador_resfriamento — ou alternativamente o output colorido do 'docker compose up' com os logs de cada serviço aparecendo em paralelo">
   <br>
-  <strong>Múltiplos contêineres rodando simultaneamente via Docker</strong>
+  <strong>Múltiplos contêineres em execução simultânea — ambiente distribuído via Docker</strong>
   <br><br>
 </div>
 
@@ -646,7 +545,7 @@ BROKER_HOST=<IP_MAQUINA_A> python cliente.py
 <section id="docker">
 <h2>Emulação com Docker</h2>
 
-Todos os componentes são containerizados individualmente com Dockerfiles baseados em `python:3.11-slim`, mantendo as imagens leves e sem dependências além da biblioteca padrão do Python. A variável de ambiente `BROKER_HOST` é o único ponto de configuração necessário para apontar qualquer componente para um broker em qualquer endereço de rede.
+Todos os componentes são containerizados individualmente com Dockerfiles baseados em `python:3.11-slim`. A variável de ambiente `BROKER_HOST` é o único ponto de configuração necessário para apontar qualquer componente para um broker em qualquer endereço de rede — sem recompilar imagens.
 
 ```dockerfile
 FROM python:3.11-slim
@@ -656,92 +555,57 @@ ENV BROKER_HOST=localhost
 CMD ["python", "-u", "atuador_limitador.py"]
 ```
 
-A flag `-u` no `CMD` desativa o buffering de saída do Python, garantindo que os logs apareçam em tempo real no `docker logs` sem atraso de buffer.
-
-### docker-compose
-
-O `docker-compose.yml` permite subir o ambiente completo com um único comando, com cada componente em seu próprio contêiner isolado:
+A flag `-u` desativa o buffering de saída do Python, garantindo logs em tempo real no `docker logs`. O `docker-compose.yml` orquestra o ambiente completo:
 
 ```yaml
 version: "3.9"
 services:
   broker:
-    build:
-      context: .
-      dockerfile: Dockerfile.broker
-    ports:
-      - "5000:5000/udp"
-      - "5001:5001"
-      - "5002:5002"
+    build: { context: ., dockerfile: Dockerfile.broker }
+    ports: ["5000:5000/udp", "5001:5001", "5002:5002"]
 
   sensor_velocidade_1:
-    build:
-      context: .
-      dockerfile: Dockerfile.sensor_velocidade
-    environment:
-      - BROKER_HOST=broker
-      - SENSOR_ID=velocidade-001
+    build: { context: ., dockerfile: Dockerfile.sensor_velocidade }
+    environment: [BROKER_HOST=broker, SENSOR_ID=velocidade-001]
     depends_on: [broker]
 
   sensor_velocidade_2:
-    build:
-      context: .
-      dockerfile: Dockerfile.sensor_velocidade
-    environment:
-      - BROKER_HOST=broker
-      - SENSOR_ID=velocidade-002
+    build: { context: ., dockerfile: Dockerfile.sensor_velocidade }
+    environment: [BROKER_HOST=broker, SENSOR_ID=velocidade-002]
     depends_on: [broker]
 
   sensor_temperatura:
-    build:
-      context: .
-      dockerfile: Dockerfile.sensor_temperatura
-    environment:
-      - BROKER_HOST=broker
+    build: { context: ., dockerfile: Dockerfile.sensor_temperatura }
+    environment: [BROKER_HOST=broker]
     depends_on: [broker]
 
   sensor_combustivel:
-    build:
-      context: .
-      dockerfile: Dockerfile.sensor_combustivel
-    environment:
-      - BROKER_HOST=broker
+    build: { context: ., dockerfile: Dockerfile.sensor_combustivel }
+    environment: [BROKER_HOST=broker]
     depends_on: [broker]
 
   sensor_oleo:
-    build:
-      context: .
-      dockerfile: Dockerfile.sensor_oleo
-    environment:
-      - BROKER_HOST=broker
+    build: { context: ., dockerfile: Dockerfile.sensor_oleo }
+    environment: [BROKER_HOST=broker]
     depends_on: [broker]
 
   atuador_limitador:
-    build:
-      context: .
-      dockerfile: Dockerfile.atuador_limitador
-    environment:
-      - BROKER_HOST=broker
+    build: { context: ., dockerfile: Dockerfile.atuador_limitador }
+    environment: [BROKER_HOST=broker]
     depends_on: [broker]
 
   atuador_resfriamento:
-    build:
-      context: .
-      dockerfile: Dockerfile.atuador_resfriamento
-    environment:
-      - BROKER_HOST=broker
+    build: { context: ., dockerfile: Dockerfile.atuador_resfriamento }
+    environment: [BROKER_HOST=broker]
     depends_on: [broker]
 ```
 
-Para escalar horizontalmente qualquer sensor e testar convergência entre múltiplas instâncias:
+Para escalar horizontalmente e testar convergência entre múltiplas instâncias:
 ```bash
 docker compose up --scale sensor_velocidade_1=3
 ```
 
-### Comunicação entre Máquinas Distintas
-
-O broker escuta em `0.0.0.0` em todas as interfaces de rede. Para conectar componentes de outra máquina na mesma rede local, basta definir `BROKER_HOST` com o IP da máquina hospedeira — nenhuma outra configuração é necessária:
-
+O broker escuta em `0.0.0.0` em todas as interfaces. Para conectar componentes de outra máquina na mesma rede local, basta definir `BROKER_HOST` com o IP da máquina hospedeira:
 ```bash
 docker run -e BROKER_HOST=192.168.1.100 -e SENSOR_ID=velocidade-ext sensor_velocidade
 ```
@@ -753,45 +617,31 @@ docker run -e BROKER_HOST=192.168.1.100 -e SENSOR_ID=velocidade-ext sensor_veloc
 <section id="execucao">
 <h2>Como Executar</h2>
 
-### Sem Docker (desenvolvimento local)
-
-Requisito: Python 3.9 ou superior. Sem dependências externas.
-
+**Sem Docker** (Python 3.9+, sem dependências externas):
 ```bash
-# Terminal 1 — inicie sempre o broker primeiro
-python broker.py
-
-# Terminais 2–5 — sensores (abra quantos quiser de cada tipo)
-python sensor_velocidade.py
+python broker.py                    # terminal 1 — inicie sempre o broker primeiro
+python sensor_velocidade.py         # terminais separados para cada componente
 python sensor_temperatura.py
 python sensor_combustivel.py
 python sensor_oleo.py
-
-# Terminais 6–7 — atuadores
 python atuador_limitador.py
 python atuador_resfriamento.py
-
-# Terminal 8 — cliente interativo
-python cliente.py
+python cliente.py                   # cliente interativo
 ```
 
-### Com Docker Compose
-
+**Com Docker Compose:**
 ```bash
-# Sobe todos os serviços
 docker compose up --build
-
-# Em outro terminal, rode o cliente localmente
-python cliente.py   # BROKER_HOST=localhost por padrão
+python cliente.py                   # rode o cliente localmente (BROKER_HOST=localhost)
 ```
 
-### Variáveis de Ambiente
+**Variáveis de ambiente:**
 
 | Variável | Componente | Padrão | Descrição |
 |---|---|---|---|
 | `BROKER_HOST` | Todos | `localhost` | IP ou hostname do broker |
-| `SENSOR_ID` | Sensores | `<tipo>-<uuid>` | ID único do sensor — gerado automaticamente se ausente |
-| `ACTUATOR_ID` | Atuadores | `<tipo>-<uuid>` | ID único do atuador — gerado automaticamente se ausente |
+| `SENSOR_ID` | Sensores | `<tipo>-<uuid>` | ID único — gerado automaticamente se ausente |
+| `ACTUATOR_ID` | Atuadores | `<tipo>-<uuid>` | ID único — gerado automaticamente se ausente |
 
 </section>
 
