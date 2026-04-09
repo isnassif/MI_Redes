@@ -1,0 +1,8 @@
+services:
+  broker:
+    image: isnassif/pbl-broker:latest
+    ports:
+      - "5000:5000/udp"
+      - "5001:5001"
+      - "5002:5002"
+    restart: unless-stopped
