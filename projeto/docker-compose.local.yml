@@ -1,0 +1,82 @@
+services:
+
+  broker:
+    image: isnassif/pbl-broker:latest
+    ports:
+      - "5000:5000/udp"
+      - "5001:5001"
+      - "5002:5002"
+    networks:
+      - pbl-net
+    stop_grace_period: 2s
+    init: true
+
+  velocidade-1:
+    image: isnassif/pbl-sensor-velocidade:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+  temperatura-1:
+    image: isnassif/pbl-sensor-temperatura:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+  combustivel-1:
+    image: isnassif/pbl-sensor-combustivel:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+  oleo-1:
+    image: isnassif/pbl-sensor-oleo:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+  limitador-1:
+    image: isnassif/pbl-atuador-limitador:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+  resfriamento-1:
+    image: isnassif/pbl-atuador-resfriamento:latest
+    environment:
+      - BROKER_HOST=broker
+    networks:
+      - pbl-net
+    depends_on:
+      - broker
+    stop_grace_period: 2s
+    init: true
+
+networks:
+  pbl-net:
+    driver: bridge
