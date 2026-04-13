@@ -1,6 +1,6 @@
 FROM python:3.11-slim
  
-LABEL author="Ikhlas Nassof" \
+LABEL author="Ikhlas Nassif" \
       description="Broker central do sistema de telemetria veicular — PBL Redes" \
       version="1.0"
  
