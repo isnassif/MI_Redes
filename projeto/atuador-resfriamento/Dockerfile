@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-LABEL author="Seu Nome" \
+LABEL author="Ikhlas Nassif" \
       description="Atuador de resfriamento — PBL Redes" \
       version="1.0"
 
