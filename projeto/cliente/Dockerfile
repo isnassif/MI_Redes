@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-LABEL author="Seu Nome" \
+LABEL author="Ikhlas Nassif" \
       description="Cliente terminal de monitoramento — PBL Redes" \
       version="1.0"
 
