@@ -1,5 +1,5 @@
 FROM python:3.11-slim 
-LABEL author="Seu Nome" \
+LABEL author="Ikhlas Nassif" \
       description="Atuador limitador de velocidade — PBL Redes" \
       version="1.0"
  
